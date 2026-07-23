@@ -1,0 +1,72 @@
+page {
+  --green: #168A51;
+  --green-dark: #0B673B;
+  --green-soft: #E8F6EE;
+  --orange: #FF7A3D;
+  --pink: #FFE9ED;
+  --cream: #FFF5D9;
+  --ink: #173126;
+  --muted: #718078;
+  --line: #E5ECE7;
+  --surface: #FFFFFF;
+  --page: #F5F7F5;
+  min-height: 100%;
+  background: var(--page);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 28rpx;
+}
+
+view, text, image, button, input, textarea, scroll-view, swiper, swiper-item {
+  box-sizing: border-box;
+}
+
+button::after { border: 0; }
+
+.page-shell { padding: 24rpx 24rpx 180rpx; }
+.card { background: var(--surface); border-radius: 28rpx; }
+.shadow { box-shadow: 0 16rpx 44rpx rgba(28, 78, 52, .08); }
+.row { display: flex; align-items: center; }
+.between { display: flex; align-items: center; justify-content: space-between; }
+.muted { color: var(--muted); }
+.price { color: #ED5A37; font-weight: 800; }
+.price-symbol { font-size: 22rpx; }
+.section-title { font-size: 38rpx; line-height: 1.2; font-weight: 900; letter-spacing: -1rpx; }
+.section-kicker { margin-top: 8rpx; color: var(--muted); font-size: 24rpx; }
+.primary-btn {
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #20A765, #087640);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 10rpx 24rpx rgba(15, 136, 77, .24);
+}
+.ghost-btn { border-radius: 999rpx; color: var(--green); background: var(--green-soft); font-weight: 700; }
+.tag { display: inline-flex; align-items: center; padding: 6rpx 14rpx; border-radius: 999rpx; background: var(--green-soft); color: var(--green-dark); font-size: 20rpx; font-weight: 700; }
+.strong { display: block; font-weight: 800; }
+.small { display: block; color: var(--muted); font-size: 20rpx; }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+.skeleton { overflow: hidden; position: relative; background: #E7ECE8 !important; color: transparent !important; }
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+  animation: shimmer 1.2s infinite;
+}
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+
+@media (prefers-color-scheme: dark) {
+  page {
+    --ink: #EEF7F1;
+    --muted: #A7B8AE;
+    --line: #2D4135;
+    --surface: #192A21;
+    --page: #101A15;
+    --green-soft: #233D2E;
+    --cream: #3C3420;
+    --pink: #3B292E;
+  }
+  image { opacity: .92; }
+}

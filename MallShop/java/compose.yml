@@ -1,0 +1,46 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: xianfupu-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: xianfupu
+      MYSQL_USER: xianfupu
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-xianfupu123}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123456}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - xianfupu_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uxianfupu -p$${MYSQL_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: .
+    container_name: xianfupu-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/xianfupu?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USERNAME: xianfupu
+      DB_PASSWORD: ${MYSQL_PASSWORD:-xianfupu123}
+      JWT_SECRET: ${JWT_SECRET:-local-compose-secret-change-before-production-123456}
+      DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-true}
+      DEV_ADMIN_SECRET: ${DEV_ADMIN_SECRET:-Admin@123456}
+      WECHAT_APP_ID: ${WECHAT_APP_ID:-}
+      WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:-}
+      TZ: Asia/Shanghai
+    ports:
+      - "8080:8080"
+
+volumes:
+  xianfupu_mysql_data:

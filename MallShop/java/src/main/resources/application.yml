@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: xianfupu-backend
+  autoconfigure:
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/xianfupu?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${DB_USERNAME:xianfupu}
+    password: ${DB_PASSWORD:xianfupu123}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+      minimum-idle: 2
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  jackson:
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  error:
+    include-message: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:change-this-local-secret-before-production-please-32bytes}
+    expire-hours: ${JWT_EXPIRE_HOURS:168}
+  wechat:
+    app-id: ${WECHAT_APP_ID:}
+    app-secret: ${WECHAT_APP_SECRET:}
+  dev-login-enabled: ${DEV_LOGIN_ENABLED:true}
+  dev-admin-secret: ${DEV_ADMIN_SECRET:Admin@123456}
+  order:
+    payment-timeout-minutes: ${PAYMENT_TIMEOUT_MINUTES:15}
+  cors:
+    allowed-origins: ${ALLOWED_ORIGINS:*}
+
+logging:
+  level:
+    com.xianfupu.shop: INFO

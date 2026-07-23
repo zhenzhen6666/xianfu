@@ -1,0 +1,34 @@
+{
+  "pages": [
+    "pages/home/home",
+    "pages/category/category",
+    "pages/cart/cart",
+    "pages/checkout/checkout",
+    "pages/orders/orders",
+    "pages/profile/profile",
+    "pages/member/member",
+    "pages/activity/activity"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#F6FBF7",
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "鲜福铺 · 三公里鲜到家",
+    "backgroundColor": "#F5F7F5",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#8A948E",
+    "selectedColor": "#168A51",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/home/home", "text": "首页" },
+      { "pagePath": "pages/category/category", "text": "选购" },
+      { "pagePath": "pages/orders/orders", "text": "订单" },
+      { "pagePath": "pages/profile/profile", "text": "我的" }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

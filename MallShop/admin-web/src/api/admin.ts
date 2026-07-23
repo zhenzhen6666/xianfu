@@ -1,0 +1,40 @@
+import { http } from './http'
+import type {
+  Activity,
+  AdminUser,
+  AfterSale,
+  Category,
+  Dashboard,
+  DeliveryConfig,
+  HomeModule,
+  LoginResult,
+  Order,
+  Product,
+  ProductPayload,
+} from '../types/api'
+
+const data = <T>(request: Promise<{ data: T }>) => request.then((response) => response.data)
+
+export const adminApi = {
+  login: (nickname: string, secret: string) => data<LoginResult>(http.post('/auth/dev-admin-login', { nickname, secret })),
+  dashboard: () => data<Dashboard>(http.get('/admin/dashboard')),
+  products: (status = 'ALL') => data<Product[]>(http.get('/admin/products', { params: { status } })),
+  createProduct: (payload: ProductPayload) => data<Product>(http.post('/admin/products', payload)),
+  updateProduct: (code: string, payload: ProductPayload) => data<Product>(http.put(`/admin/products/${code}`, payload)),
+  orders: (status = 'ALL', page = 0, size = 100) => data<Order[]>(http.get('/admin/orders', { params: { status, page, size } })),
+  updateOrderStatus: (orderNo: string, status: string) => data(http.patch(`/admin/orders/${orderNo}/status`, { status })),
+  refund: (orderNo: string, amount: number, reason: string) => data(http.post(`/admin/orders/${orderNo}/refund`, { amount, reason })),
+  delivery: () => data<DeliveryConfig>(http.get('/admin/delivery-config')),
+  updateDelivery: (payload: Omit<DeliveryConfig, 'id' | 'updatedAt'>) => data<DeliveryConfig>(http.put('/admin/delivery-config', payload)),
+  users: (keyword = '') => data<AdminUser[]>(http.get('/admin/users', { params: { keyword: keyword || undefined } })),
+  updateUserStatus: (id: number, status: string) => data(http.patch(`/admin/users/${id}/status`, { status })),
+  afterSales: (status = 'ALL') => data<AfterSale[]>(http.get('/admin/after-sales', { params: { status } })),
+  updateAfterSale: (no: string, status: string, reply: string) => data(http.patch(`/admin/after-sales/${no}`, { status, reply })),
+  categories: () => data<Category[]>(http.get('/admin/categories')),
+  saveCategory: (code: string, payload: Omit<Category, 'code'>) => data<Category[]>(http.put(`/admin/categories/${code}`, payload)),
+  homeModules: () => data<HomeModule[]>(http.get('/admin/home-modules')),
+  createHomeModule: (payload: Omit<HomeModule, 'id' | 'publishedAt' | 'updatedAt'>) => data<HomeModule[]>(http.post('/admin/home-modules', payload)),
+  updateHomeModule: (id: number, payload: Omit<HomeModule, 'id' | 'publishedAt' | 'updatedAt'>) => data<HomeModule[]>(http.put(`/admin/home-modules/${id}`, payload)),
+  activities: () => data<Activity[]>(http.get('/admin/activities')),
+  updateActivity: (code: string, payload: Omit<Activity, 'code'>) => data<Activity>(http.put(`/admin/activities/${code}`, payload)),
+}

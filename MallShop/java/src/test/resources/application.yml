@@ -1,0 +1,22 @@
+spring:
+  autoconfigure:
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  datasource:
+    url: jdbc:h2:mem:xianfupu;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  flyway:
+    enabled: true
+  jackson:
+    time-zone: Asia/Shanghai
+
+app:
+  jwt:
+    secret: test-secret-must-have-at-least-thirty-two-bytes
+    expire-hours: 1
+  dev-login-enabled: true
+  dev-admin-secret: TestAdminSecret
+  order:
+    payment-timeout-minutes: 15
+  cors:
+    allowed-origins: "*"

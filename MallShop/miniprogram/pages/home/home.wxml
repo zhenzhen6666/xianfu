@@ -1,0 +1,99 @@
+<view class="home page-shell">
+  <view class="service-row between">
+    <view>
+      <view class="location row"><text class="pin">●</text><text>幸福里社区</text><text class="chevron">⌄</text></view>
+      <text class="arrival">预计 30 分钟送达</text>
+    </view>
+    <button class="share-btn" open-type="share">↗</button>
+  </view>
+
+  <view class="search-wrap row shadow">
+    <text class="search-icon">⌕</text>
+    <input value="{{searchValue}}" bindinput="bindSearch" bindconfirm="doSearch" confirm-type="search" placeholder="搜蔬菜、水果、日用百货" />
+    <button bindtap="doSearch">搜索</button>
+  </view>
+
+  <view class="hero card shadow {{loading ? 'skeleton' : ''}}">
+    <view class="hero-copy">
+      <view class="eyebrow">今日鲜采 · 即刻送达</view>
+      <view class="hero-title">新鲜三公里<text>30 分钟到家</text></view>
+      <view class="hero-sub">满 30 元免配送费</view>
+      <button class="hero-btn" bindtap="goCategory">马上选购 <text>→</text></button>
+    </view>
+    <view class="hero-images">
+      <image class="hero-img one" src="/assets/products/bok-choy.jpg" mode="aspectFill" />
+      <image class="hero-img two" src="/assets/products/tomato.jpg" mode="aspectFill" />
+    </view>
+    <view class="hero-bubble">鲜</view>
+  </view>
+
+  <view class="notice row">
+    <text class="notice-icon">闪</text>
+    <text class="notice-main">城区 3 公里配送</text>
+    <text class="notice-dot">·</text>
+    <text>30 分钟送货上门</text>
+  </view>
+
+  <view class="quick-grid card">
+    <view class="quick-item" wx:for="{{quicks}}" wx:key="name" data-type="{{item.type}}" bindtap="goActivity">
+      <view class="quick-icon {{item.theme}}">{{item.icon}}</view>
+      <text>{{item.name}}</text>
+    </view>
+  </view>
+
+  <view class="zone-grid">
+    <view class="zone zone-cook" data-type="clean" bindtap="goActivity">
+      <view class="zone-kicker">省心搭配</view>
+      <view class="zone-title">在家做饭</view>
+      <view class="zone-link">去看看 →</view>
+      <image src="/assets/products/mushroom.jpg" mode="aspectFill" />
+    </view>
+    <view class="zone zone-deal" data-type="deal" bindtap="goActivity">
+      <view class="zone-kicker">本周爆款</view>
+      <view class="zone-title">9.9 特惠</view>
+      <view class="zone-link">限时抢 →</view>
+      <image src="/assets/products/orange.jpg" mode="aspectFill" />
+    </view>
+  </view>
+
+  <view class="section-head between">
+    <view><view class="section-title">今日菜篮</view><view class="section-kicker">邻里都在买的新鲜好物</view></view>
+    <view class="more" bindtap="goCategory">全部 <text>›</text></view>
+  </view>
+
+  <view class="product-grid">
+    <view class="product-card card" wx:for="{{products}}" wx:key="id">
+      <view class="product-media {{loading ? 'skeleton' : ''}}">
+        <image src="{{item.image}}" mode="aspectFill" lazy-load="true" />
+        <text class="product-badge">{{item.badge}}</text>
+      </view>
+      <view class="product-info">
+        <view class="product-name">{{item.name}}</view>
+        <view class="product-spec">{{item.spec}}</view>
+        <view class="between product-bottom">
+          <view><text class="price-symbol price">¥</text><text class="price">{{item.price}}</text></view>
+          <button class="add-btn" data-id="{{item.id}}" bindtap="addCart">＋</button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="cart-float shadow" bindtap="goCart">
+    <text>购物车</text>
+    <view class="cart-count" wx:if="{{cartCount}}">{{cartCount}}</view>
+  </view>
+</view>
+
+<view class="guide-mask" wx:if="{{showGuide}}" bindtap="closeGuide">
+  <view class="guide-card" catchtap="noop">
+    <view class="guide-mark">鲜</view>
+    <view class="guide-title">欢迎来到鲜福铺</view>
+    <view class="guide-sub">买菜很简单，三步就到家</view>
+    <view class="guide-steps">
+      <view><text>1</text><view><text class="strong">搜索好物</text><text class="small">按名称快速找到商品</text></view></view>
+      <view><text>2</text><view><text class="strong">领券加购</text><text class="small">新人优惠自动放进卡包</text></view></view>
+      <view><text>3</text><view><text class="strong">提交订单</text><text class="small">满 30 元免配送费</text></view></view>
+    </view>
+    <button class="primary-btn guide-btn" bindtap="closeGuide">我知道了，开始选购</button>
+  </view>
+</view>

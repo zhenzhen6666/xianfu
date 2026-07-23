@@ -1,0 +1,41 @@
+<view class="cart-page page-shell">
+  <view class="delivery-card card">
+    <view class="between">
+      <view class="delivery-title"><text>闪</text><view><text class="strong">{{remaining === '0.00' ? '已享免配送费' : '再买 ¥' + remaining + ' 免配送费'}}</text><text class="small">{{remaining === '0.00' ? '省下 3 元，30 分钟送到家' : '满 30 元即可免 3 元配送费'}}</text></view></view>
+      <text class="go" bindtap="goShopping">去凑单 ›</text>
+    </view>
+    <view class="progress"><view style="width: {{progress}}%"></view></view>
+  </view>
+
+  <view class="cart-actions between" wx:if="{{items.length}}">
+    <view class="select-row" bindtap="toggleAll"><text class="check {{allSelected ? 'checked' : ''}}">{{allSelected ? '✓' : ''}}</text><text>全选</text></view>
+    <text bindtap="removeSelected">删除选中</text>
+  </view>
+
+  <view class="cart-list" wx:if="{{items.length}}">
+    <view class="cart-item card" wx:for="{{items}}" wx:key="id">
+      <text class="check {{item.selected ? 'checked' : ''}}" data-id="{{item.id}}" bindtap="toggleItem">{{item.selected ? '✓' : ''}}</text>
+      <image src="{{item.image}}" mode="aspectFill" />
+      <view class="item-info">
+        <view class="between"><view class="item-name">{{item.name}}</view><text class="remove" data-id="{{item.id}}" bindtap="removeOne">×</text></view>
+        <view class="item-spec">{{item.spec}}</view>
+        <view class="between item-bottom">
+          <view><text class="price-symbol price">¥</text><text class="price">{{item.price}}</text></view>
+          <view class="stepper"><button data-id="{{item.id}}" data-delta="-1" bindtap="changeCount">−</button><text>{{item.count}}</text><button data-id="{{item.id}}" data-delta="1" bindtap="changeCount">＋</button></view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-cart" wx:else>
+    <view class="empty-bag">袋</view><view class="empty-title">购物车还是空的</view><view class="empty-sub">今天也要好好吃饭呀</view>
+    <button class="primary-btn" bindtap="goShopping">去逛逛</button>
+  </view>
+</view>
+
+<view class="checkout-bar safe-bottom" wx:if="{{items.length}}">
+  <view class="checkout-inner between">
+    <view><view class="summary">合计 <text>¥{{total}}</text></view><view class="fee">配送费 ¥{{deliveryFee}}</view></view>
+    <button class="primary-btn {{!selectedCount ? 'disabled' : ''}}" bindtap="checkout">结算（{{selectedCount}}）</button>
+  </view>
+</view>

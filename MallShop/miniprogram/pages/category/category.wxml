@@ -1,0 +1,61 @@
+<view class="category-page">
+  <view class="category-top">
+    <view class="search-box row">
+      <text>⌕</text>
+      <input value="{{searchValue}}" bindinput="bindSearch" placeholder="搜索想买的好物" />
+      <text class="clear" wx:if="{{searchValue}}" bindtap="clearSearch">×</text>
+    </view>
+    <scroll-view class="filter-scroll" scroll-x enhanced show-scrollbar="false">
+      <view class="filters">
+        <view class="filter {{sort === 'sales' ? 'active' : ''}}" data-sort="sales" bindtap="setSort">销量优先</view>
+        <view class="filter {{sort === 'asc' ? 'active' : ''}}" data-sort="asc" bindtap="setSort">价格 ↑</view>
+        <view class="filter {{sort === 'desc' ? 'active' : ''}}" data-sort="desc" bindtap="setSort">价格 ↓</view>
+        <view class="filter {{specialOnly ? 'active' : ''}}" bindtap="toggleSpecial">特价</view>
+        <view class="filter {{memberOnly ? 'active' : ''}}" bindtap="toggleMember">会员价</view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <view class="catalog">
+    <scroll-view class="category-list" scroll-y enhanced show-scrollbar="false">
+      <view class="category-item {{activeCategory === item ? 'active' : ''}}" wx:for="{{categories}}" wx:key="*this" data-name="{{item}}" bindtap="selectCategory">
+        <text class="active-line"></text>{{item}}
+      </view>
+    </scroll-view>
+    <scroll-view class="goods-list" scroll-y enhanced show-scrollbar="false">
+      <view class="goods-head between"><view><text>{{activeCategory}}</text><text class="small">{{products.length}} 件好物</text></view><text class="fresh">今日新鲜上架</text></view>
+      <view class="goods-card card" wx:for="{{products}}" wx:key="id" data-id="{{item.id}}" bindtap="showProduct">
+        <image src="{{item.image}}" mode="aspectFill" lazy-load="true" />
+        <view class="goods-info">
+          <view class="goods-name">{{item.name}}</view>
+          <view class="goods-sub">{{item.subtitle}}</view>
+          <view class="goods-spec">{{item.spec}} · 月售{{item.sales}}</view>
+          <view class="goods-price-row between">
+            <view><text class="price-symbol price">¥</text><text class="price">{{item.price}}</text><text class="original">¥{{item.original}}</text></view>
+            <button class="add" catchtap="addCart" data-id="{{item.id}}">＋</button>
+          </view>
+        </view>
+      </view>
+      <view class="empty" wx:if="{{!products.length}}"><text>⌕</text><view>暂时没有找到相关商品</view><text class="small">换个分类或关键词试试</text></view>
+      <view class="list-end" wx:if="{{products.length}}">— 新鲜好物都在这里啦 —</view>
+    </scroll-view>
+  </view>
+
+  <view class="cart-float shadow" bindtap="goCart"><text class="cart-icon">袋</text><text>购物车</text><view class="count" wx:if="{{cartCount}}">{{cartCount}}</view></view>
+</view>
+
+<view class="modal-mask" wx:if="{{selectedProduct}}" bindtap="closeProduct">
+  <view class="product-sheet safe-bottom" catchtap="noop">
+    <image class="sheet-image" src="{{selectedProduct.image}}" mode="aspectFill" />
+    <view class="sheet-body">
+      <view class="between"><view class="sheet-title">{{selectedProduct.name}}</view><text class="sheet-close" bindtap="closeProduct">×</text></view>
+      <view class="sheet-sub">{{selectedProduct.subtitle}}</view>
+      <view class="sheet-tags"><text>冷鲜配送</text><text>坏果包赔</text><text>库存 {{selectedProduct.stock}}</text></view>
+      <view class="sheet-spec between"><view><text class="label">选择规格</text><text>{{selectedProduct.spec}}</text></view><text>✓</text></view>
+      <view class="sheet-footer between">
+        <view><text class="price-symbol price">¥</text><text class="sheet-price price">{{selectedProduct.price}}</text><text class="member-price">会员 ¥{{selectedProduct.member}}</text></view>
+        <button class="primary-btn" bindtap="addFromModal">加入购物车</button>
+      </view>
+    </view>
+  </view>
+</view>

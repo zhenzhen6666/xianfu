@@ -1,0 +1,29 @@
+<view class="orders-page">
+  <scroll-view class="order-tabs" scroll-x enhanced show-scrollbar="false">
+    <view class="tabs-inner">
+      <view class="order-tab {{active === item.key ? 'active' : ''}}" wx:for="{{tabs}}" wx:key="key" data-key="{{item.key}}" bindtap="selectTab">{{item.label}}<text></text></view>
+    </view>
+  </scroll-view>
+
+  <view class="orders-list">
+    <view class="order-card card" wx:for="{{orders}}" wx:key="id">
+      <view class="order-head between"><view><text>订单 {{item.id}}</text><text class="small">{{item.createdAt}}</text></view><text class="status {{item.status}}">{{item.statusText}}</text></view>
+      <view class="order-products">
+        <image wx:for="{{item.items}}" wx:for-item="product" wx:key="id" src="{{product.image}}" mode="aspectFill" />
+        <view class="more-count" wx:if="{{item.items.length > 3}}">+{{item.items.length - 3}}</view>
+      </view>
+      <view class="order-summary"><text>商品合计 ¥{{item.subtotal}}</text><text>配送费 ¥{{item.deliveryFee}}</text><view>实付 <text class="strong">¥{{item.total}}</text></view></view>
+      <view class="order-actions">
+        <button wx:if="{{item.status === 'wait_pay'}}" class="light" bindtap="afterSale">取消订单</button>
+        <button wx:if="{{item.status === 'wait_pay'}}" class="primary" data-id="{{item.id}}" data-action="pay" bindtap="primaryAction">去支付</button>
+        <button wx:if="{{item.status === 'shipping'}}" class="light" bindtap="viewProgress">配送进度</button>
+        <button wx:if="{{item.status === 'shipping'}}" class="primary" data-id="{{item.id}}" data-action="confirm" bindtap="primaryAction">确认收货</button>
+        <button wx:if="{{item.status === 'complete'}}" class="light" bindtap="afterSale">申请售后</button>
+        <button wx:if="{{item.status === 'complete'}}" class="primary" data-id="{{item.id}}" data-action="reorder" bindtap="primaryAction">再来一单</button>
+        <button wx:if="{{item.status === 'cancel'}}" class="primary" data-id="{{item.id}}" data-action="reorder" bindtap="primaryAction">重新购买</button>
+      </view>
+    </view>
+    <view class="no-orders" wx:if="{{!orders.length}}"><view>单</view><text>这个分类还没有订单</text><text class="small">去挑些新鲜好物吧</text><button class="primary-btn" bindtap="goShopping">去选购</button></view>
+    <view class="end" wx:if="{{orders.length}}">— 已经到底啦 —</view>
+  </view>
+</view>

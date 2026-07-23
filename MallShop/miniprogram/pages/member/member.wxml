@@ -1,0 +1,16 @@
+<view class="member-page">
+  <view class="gold-card">
+    <view class="gold-top between"><view><text>♛</text><text class="strong">鲜福金卡</text></view><text>NO. 20260720</text></view>
+    <view class="hello">林间小满，您好</view>
+    <view class="growth between"><view><text class="small">当前成长值</text><text class="strong">3,680</text></view><view class="growth-right"><view><text></text></view><text class="small">距离钻石会员还差 320</text></view></view>
+    <view class="levels"><text>普通</text><text>银卡</text><text class="active">金卡</text><text>钻石</text></view>
+  </view>
+  <view class="member-content">
+    <view class="section-title">我的会员权益</view><view class="section-kicker">等级越高，生活越鲜省</view>
+    <view class="rights card"><view wx:for="{{rights}}" wx:key="name"><text>{{item.icon}}</text><text class="strong">{{item.name}}</text><text class="small">{{item.desc}}</text></view></view>
+    <view class="points-card card between" bindtap="goPoints"><view><text class="small">可用积分</text><text class="strong">2,680</text><text>消费 1 元 = 1 积分</text></view><view class="points-go">积分商城 ›</view></view>
+    <view class="coupon-head between"><view><view class="section-title">本月会员券包</view><view class="section-kicker">金卡会员每月可领</view></view><text>2 张待领取</text></view>
+    <view class="coupon" wx:for="{{coupons}}" wx:key="amount"><view class="amount"><text class="small">¥</text><text class="strong">{{item.amount}}</text></view><view class="coupon-info"><text class="strong">会员专享抵扣券</text><text class="small">{{item.condition}} · {{item.date}}</text></view><button bindtap="getCoupon">领取</button></view>
+    <view class="rule card"><text class="strong">积分与升级规则</text><text>· 每消费 1 元可获得 1 积分，金卡会员享双倍积分</text><text>· 累计消费自动升级，成长值长期有效</text><text>· 积分可在结算页抵扣订单现金</text></view>
+  </view>
+</view>
