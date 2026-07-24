@@ -348,12 +348,14 @@ public class OrderService {
 
     private void upgradeMember(long userId) {
         jdbc.sql("""
-                UPDATE users SET member_level_id = (
-                    SELECT id FROM member_levels WHERE min_spend <=
-                        (SELECT total_spent FROM users WHERE id = :userId)
-                    ORDER BY min_spend DESC LIMIT 1
-                ), updated_at = CURRENT_TIMESTAMP WHERE id = :userId
-                """).param("userId", userId).update();
+        UPDATE users SET member_level_id = (
+            SELECT id FROM member_levels WHERE min_spend <=
+                (SELECT t.total_spent FROM (SELECT total_spent FROM users WHERE id = :userId) t)
+            ORDER BY min_spend DESC LIMIT 1
+        ), updated_at = CURRENT_TIMESTAMP WHERE id = :userId
+        """)
+                .param("userId", userId)
+                .update();
     }
 
     private void insertPointTransaction(long userId, long orderId, int change, int balance,

@@ -5,8 +5,8 @@ spring:
     exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   datasource:
     url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/xianfupu?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
-    username: ${DB_USERNAME:xianfupu}
-    password: ${DB_PASSWORD:xianfupu123}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:liuzhen2002}
     hikari:
       maximum-pool-size: ${DB_POOL_SIZE:20}
       minimum-idle: 2
