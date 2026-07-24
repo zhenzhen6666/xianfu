@@ -9,6 +9,7 @@ import type {
   HomeModule,
   LoginResult,
   Order,
+  OrderDetail,
   Product,
   ProductPayload,
 } from '../types/api'
@@ -22,6 +23,7 @@ export const adminApi = {
   createProduct: (payload: ProductPayload) => data<Product>(http.post('/admin/products', payload)),
   updateProduct: (code: string, payload: ProductPayload) => data<Product>(http.put(`/admin/products/${code}`, payload)),
   orders: (status = 'ALL', page = 0, size = 100) => data<Order[]>(http.get('/admin/orders', { params: { status, page, size } })),
+  order: (orderNo: string) => data<OrderDetail>(http.get(`/admin/orders/${orderNo}`)),
   updateOrderStatus: (orderNo: string, status: string) => data(http.patch(`/admin/orders/${orderNo}/status`, { status })),
   refund: (orderNo: string, amount: number, reason: string) => data(http.post(`/admin/orders/${orderNo}/refund`, { amount, reason })),
   delivery: () => data<DeliveryConfig>(http.get('/admin/delivery-config')),

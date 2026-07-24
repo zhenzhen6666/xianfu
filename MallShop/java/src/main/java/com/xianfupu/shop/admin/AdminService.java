@@ -105,6 +105,10 @@ public class AdminService {
         return query.query(AdminOrder.class).list();
     }
 
+    public OrderService.OrderDetail order(String orderNo) {
+        return orderService.adminDetail(orderNo);
+    }
+
     @Transactional
     public OrderService.OrderDetail updateOrderStatus(long adminId, String orderNo, String status) {
         String target = status.toUpperCase();

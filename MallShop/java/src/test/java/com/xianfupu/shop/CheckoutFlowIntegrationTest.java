@@ -1,5 +1,6 @@
 package com.xianfupu.shop;
 
+import com.xianfupu.shop.admin.AdminService;
 import com.xianfupu.shop.auth.AuthService;
 import com.xianfupu.shop.cart.CartService;
 import com.xianfupu.shop.order.OrderService;
@@ -28,6 +29,8 @@ class CheckoutFlowIntegrationTest {
     OrderService orderService;
     @Autowired
     PaymentService paymentService;
+    @Autowired
+    AdminService adminService;
 
     @Test
     void completesCheckoutPaymentAndMemberRewardFlow() {
@@ -53,6 +56,12 @@ class CheckoutFlowIntegrationTest {
         OrderService.OrderDetail order = orderService.create(userId, command);
         assertThat(order.status()).isEqualTo("WAIT_PAY");
         assertThat(cartService.get(userId).items()).isEmpty();
+
+        OrderService.OrderDetail adminDetail = adminService.order(order.orderNo());
+        assertThat(adminDetail.receiverName()).isEqualTo("林女士");
+        assertThat(adminDetail.receiverAddress()).isEqualTo("幸福里社区 8 栋 1202 室");
+        assertThat(adminDetail.note()).isEqualTo("请放门口");
+        assertThat(adminDetail.items()).hasSize(2);
 
         PaymentService.PaymentView payment = paymentService.create(userId, order.orderNo(), "MOCK");
         assertThat(payment.status()).isEqualTo("PENDING");

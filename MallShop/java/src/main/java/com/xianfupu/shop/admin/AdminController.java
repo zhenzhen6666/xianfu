@@ -63,6 +63,11 @@ public class AdminController {
         return service.orders(status, page, size);
     }
 
+    @GetMapping("/orders/{orderNo}")
+    OrderService.OrderDetail order(@PathVariable String orderNo) {
+        return service.order(orderNo);
+    }
+
     @PatchMapping("/orders/{orderNo}/status")
     OrderService.OrderDetail updateOrderStatus(@PathVariable String orderNo,
                                                @Valid @RequestBody StatusRequest request) {

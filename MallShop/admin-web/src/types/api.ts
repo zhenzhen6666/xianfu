@@ -63,6 +63,41 @@ export interface Order {
   paidAt?: string
 }
 
+export interface OrderItem {
+  id: string
+  name: string
+  spec?: string
+  image?: string
+  price: number
+  count: number
+  lineAmount: number
+}
+
+export interface OrderDetail {
+  orderNo: string
+  status: string
+  statusText: string
+  items: OrderItem[]
+  subtotal: number
+  deliveryFee: number
+  couponDiscount: number
+  memberDiscount: number
+  pointsUsed: number
+  pointsDiscount: number
+  payAmount: number
+  receiverName: string
+  receiverMobile: string
+  receiverAddress: string
+  note?: string
+  payDeadline?: string
+  paidAt?: string
+  shippedAt?: string
+  completedAt?: string
+  cancelledAt?: string
+  cancelReason?: string
+  createdAt: string
+}
+
 export interface DeliveryConfig {
   id: number
   name: string

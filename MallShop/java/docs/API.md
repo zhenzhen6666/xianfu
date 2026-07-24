@@ -20,7 +20,8 @@
 | 结算 | `POST /orders/preview` | 服务端重算订单金额 |
 | 订单 | `POST /orders` | 创建订单并锁定库存 |
 | 订单 | `GET /orders?status=WAIT_PAY` | 订单列表 |
-| 订单 | `GET /orders/{orderNo}` | 订单详情 |
+| 订单 | `GET /orders/{orderNo}` | 用户查看自己的订单详情 |
+| 管理订单 | `GET /admin/orders/{orderNo}` | 管理员查看任意订单详情 |
 | 订单 | `POST /orders/{orderNo}/cancel` | 取消待支付订单 |
 | 支付 | `POST /orders/{orderNo}/pay` | 创建支付流水并返回支付参数 |
 | 支付 | `POST /payments/mock/callback` | 本地模拟支付结果回调 |
