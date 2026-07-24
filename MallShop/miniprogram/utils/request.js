@@ -2,8 +2,18 @@ const config = require('./config')
 
 let loginPromise = null
 
+function compactQuery(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return data
+  return Object.keys(data).reduce((result, key) => {
+    const value = data[key]
+    if (value !== undefined && value !== null && value !== '') result[key] = value
+    return result
+  }, {})
+}
+
 function rawRequest(path, options = {}) {
   const { method = 'GET', data, auth = true, token } = options
+  const requestData = method === 'GET' ? compactQuery(data) : data
   return new Promise((resolve, reject) => {
     const headers = { 'Content-Type': 'application/json' }
     const accessToken = token || wx.getStorageSync(config.TOKEN_KEY)
@@ -11,7 +21,7 @@ function rawRequest(path, options = {}) {
     wx.request({
       url: `${config.getApiBaseUrl()}${path}`,
       method,
-      data,
+      data: requestData,
       header: headers,
       timeout: 15000,
       success(response) {

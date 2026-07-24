@@ -12,13 +12,17 @@ Page({
     products: [],
     cartCount: 0,
     selectedProduct: null,
-    loading: false
+    loading: false,
+    loaded: false,
+    errorMessage: ''
   },
 
   async onLoad() {
     try {
       const list = await api.categories()
-      this.setData({ categories: ['推荐'].concat(list.map(item => item.name)) })
+      const payload = list && list.data ? list.data : list
+      const categories = Array.isArray(payload) ? payload : []
+      this.setData({ categories: ['推荐'].concat(categories.map(item => item.name).filter(Boolean)) })
     } catch (error) {
       wx.showToast({ title: error.message, icon: 'none' })
     }
@@ -45,23 +49,45 @@ Page({
   toggleSpecial() { this.setData({ specialOnly: !this.data.specialOnly }, () => this.loadProducts()) },
   toggleMember() { this.setData({ memberOnly: !this.data.memberOnly }, () => this.loadProducts()) },
   async loadProducts() {
-    this.setData({ loading: true })
+    const requestId = (this.productRequestId || 0) + 1
+    this.productRequestId = requestId
+    this.setData({ loading: true, errorMessage: '' })
     try {
-      const result = await api.products({
-        category: this.data.activeCategory === '推荐' ? undefined : this.data.activeCategory,
-        keyword: this.data.searchValue.trim() || undefined,
+      const params = {
         sort: this.data.sort,
         specialOnly: this.data.specialOnly,
         memberOnly: this.data.memberOnly,
         page: 0,
         size: 100
+      }
+      if (this.data.activeCategory !== '推荐') params.category = this.data.activeCategory
+      const keyword = this.data.searchValue.trim()
+      if (keyword) params.keyword = keyword
+
+      const result = await api.products(params)
+      if (requestId !== this.productRequestId) return
+      const payload = result && result.data ? result.data : result
+      const items = Array.isArray(payload)
+        ? payload
+        : ((payload && (payload.items || payload.content)) || [])
+      this.setData({
+        products: items.map(adapters.product),
+        loading: false,
+        loaded: true,
+        errorMessage: ''
       })
-      this.setData({ products: (result.items || []).map(adapters.product), loading: false })
     } catch (error) {
-      this.setData({ loading: false })
+      if (requestId !== this.productRequestId) return
+      this.setData({
+        products: [],
+        loading: false,
+        loaded: true,
+        errorMessage: error.message || '商品加载失败'
+      })
       wx.showToast({ title: error.message, icon: 'none' })
     }
   },
+  retryProducts() { this.loadProducts() },
   showProduct(e) { this.setData({ selectedProduct: this.data.products.find(item => item.id === e.currentTarget.dataset.id) }) },
   closeProduct() { this.setData({ selectedProduct: null }) },
   async addCart(e) {
