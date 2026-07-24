@@ -1,6 +1,6 @@
 # 鲜福铺 · 三公里鲜到家
 
-根据《鲜福铺超市购物小程序开发需求文档》实现的微信原生小程序、Java 后端和 Vue 3 商家管理系统。三个子项目分别放在 `miniprogram`、`java` 和 `admin-web` 文件夹中。小程序当前默认仍使用本地模拟数据；Java 后端包含 Spring Boot、MySQL 接口和商家管理端 API，真实支付渠道需按商户资料接入。
+根据《鲜福铺超市购物小程序开发需求文档》实现的微信原生小程序、Java 后端和 Vue 3 商家管理系统。三个子项目分别放在 `miniprogram`、`java` 和 `admin-web` 文件夹中。小程序已接入 Java REST API；Java 后端包含 Spring Boot、MySQL 接口和商家管理端 API，真实支付渠道需按商户资料接入。
 
 ## 项目目录
 
@@ -28,7 +28,7 @@ MallShop/
 1. 打开微信开发者工具。
 2. 选择“导入项目”，目录选择 `MallShop/miniprogram`。
 3. 使用测试号或将 `miniprogram/project.config.json` 中的 `appid` 替换为实际小程序 AppID。
-4. 编译即可预览。项目使用本地模拟数据与本地图片，不依赖网络请求。
+4. 先启动 `java` 后端，再编译小程序。开发者工具默认请求 `http://127.0.0.1:8080/api`。
 
 后端启动、数据库配置和接口方式见 [`java/README.md`](java/README.md) 与 [`java/docs/API.md`](java/docs/API.md)。商家后台的启动方式见 [`admin-web/README.md`](admin-web/README.md)。
 
@@ -47,9 +47,9 @@ pnpm dev
 ## 业务规则
 
 - 商品合计不足 30 元时，配送费为 3 元；满 30 元免配送费。
-- 支付流程使用纯前端模拟弹窗，不会产生真实扣款。
-- 购物车、订单、地址和首次引导状态通过微信本地缓存保存。
+- 本地支付使用 Java 后端的 `MOCK` 支付渠道，不会产生真实扣款；正式上线需要接入微信支付渠道。
+- 商品、购物车、订单、地址、优惠券和积分保存在 MySQL；只有接口地址、登录令牌和首次引导状态保存在微信本地缓存。
 
-## 后续接口接入点
+## 三端接口联调
 
-商品、购物车和订单的前端模拟数据集中在 `miniprogram/utils/store.js`。接入时可将该模块替换为请求 `java` 项目 RESTful API 的统一请求层，并保持页面调用结构不变。真实支付应由后端统一下单并返回支付参数，前端仅调用支付能力和展示结果。
+小程序的统一请求层位于 `miniprogram/utils/request.js`，业务接口集中在 `miniprogram/utils/api.js`，接口地址配置位于 `miniprogram/utils/config.js`。开发者工具和后端运行在同一台电脑时默认可以直接联通；真机调试需要把接口地址改为电脑局域网 IP。具体方法见 [`miniprogram/README.md`](miniprogram/README.md)。

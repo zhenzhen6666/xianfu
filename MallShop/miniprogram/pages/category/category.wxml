@@ -23,6 +23,7 @@
       </view>
     </scroll-view>
     <scroll-view class="goods-list" scroll-y enhanced show-scrollbar="false">
+      <view class="loading-line" wx:if="{{loading}}">正在从门店加载商品…</view>
       <view class="goods-head between"><view><text>{{activeCategory}}</text><text class="small">{{products.length}} 件好物</text></view><text class="fresh">今日新鲜上架</text></view>
       <view class="goods-card card" wx:for="{{products}}" wx:key="id" data-id="{{item.id}}" bindtap="showProduct">
         <image src="{{item.image}}" mode="aspectFill" lazy-load="true" />

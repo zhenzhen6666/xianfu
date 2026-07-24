@@ -9,7 +9,7 @@
     <text class="arrow">›</text>
   </view>
 
-  <view class="eta row"><text>闪</text><view><text class="strong">预计 30 分钟送达</text><text class="small">当前运力充足，鲜品优先配送</text></view></view>
+  <view class="eta row"><text>闪</text><view><text class="strong">预计 {{promiseMinutes}} 分钟送达</text><text class="small">当前运力充足，鲜品优先配送</text></view></view>
 
   <view class="order-card card">
     <view class="card-title between"><text>商品清单</text><text class="small">共 {{items.length}} 种</text></view>
@@ -22,13 +22,13 @@
     <view class="cost-row"><text>商品合计</text><text>¥{{subtotal}}</text></view>
     <view class="cost-row"><view><text>配送费</text><text class="small">{{deliveryFee === '0.00' ? '满 30 元免配送费' : '未满 30 元，配送费 3 元'}}</text></view><text class="{{deliveryFee === '0.00' ? 'free' : ''}}">{{deliveryFee === '0.00' ? '免配送费' : '¥' + deliveryFee}}</text></view>
     <view class="divider"></view>
-    <view class="cost-row coupon-row"><view><text>优惠券</text><text class="small">新人满 29 减 5</text></view><view><text class="discount" wx:if="{{coupon}}">-¥{{coupon}}.00</text><text class="coupon-choice {{coupon === 5 ? 'active' : ''}}" data-value="5" bindtap="chooseCoupon">使用</text><text class="coupon-choice {{coupon === 0 ? 'active' : ''}}" data-value="0" bindtap="chooseCoupon">不用</text></view></view>
-    <view class="cost-row"><view><text>积分抵扣</text><text class="small">可用 250 积分，最高抵 ¥2.50</text></view><switch color="#168A51" checked="{{pointsEnabled}}" bindchange="togglePoints" /></view>
+    <view class="cost-row coupon-row"><view><text>优惠券</text><text class="small">{{couponName}}</text></view><view><text class="discount" wx:if="{{coupon !== '0.00'}}">-¥{{coupon}}</text><text class="coupon-choice {{selectedCouponId ? 'active' : ''}}" data-value="1" bindtap="chooseCoupon">使用</text><text class="coupon-choice {{!selectedCouponId ? 'active' : ''}}" data-value="0" bindtap="chooseCoupon">不用</text></view></view>
+    <view class="cost-row"><view><text>积分抵扣</text><text class="small">可用 {{pointsBalance}} 积分，本单最多使用 250</text></view><switch color="#168A51" checked="{{pointsEnabled}}" disabled="{{!pointsBalance}}" bindchange="togglePoints" /></view>
     <view class="points-cut" wx:if="{{pointsEnabled}}">本单积分已抵扣 ¥{{pointsDeduction}}</view>
   </view>
 
   <view class="note-card card"><text>订单备注</text><input value="{{note}}" bindinput="bindNote" maxlength="80" placeholder="口味、门牌或配送要求（选填）" /><text class="arrow">›</text></view>
-  <view class="pay-hint"><text>盾</text><view><text class="strong">支付安全保障</text><text class="small">支付模块独立预留，当前为前端模拟演示</text></view></view>
+  <view class="pay-hint"><text>盾</text><view><text class="strong">后端订单保障</text><text class="small">订单、库存、优惠券和积分均由 Java 服务端校验</text></view></view>
 </view>
 
 <view class="pay-bar safe-bottom"><view><text class="small">实付金额</text><view><text>¥</text>{{payTotal}}</view></view><button class="primary-btn" bindtap="submitOrder">提交订单并支付</button></view>

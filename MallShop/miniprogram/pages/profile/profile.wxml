@@ -1,13 +1,13 @@
 <view class="profile-page page-shell">
   <view class="profile-head">
-    <view class="avatar">林<text></text></view>
-    <view class="user-info"><view>林间小满</view><text bindtap="goMember">金卡会员 <text class="strong">›</text></text></view>
+    <view class="avatar">{{avatarText}}<text></text></view>
+    <view class="user-info"><view>{{user.nickname}}</view><text bindtap="goMember">{{user.memberLevelName}} <text class="strong">›</text></text></view>
     <button open-type="share">↗</button>
   </view>
 
   <view class="member-card" bindtap="goMember">
-    <view class="member-top between"><view><text class="crown">♛</text><text>鲜福金卡</text></view><text>会员中心 ›</text></view>
-    <view class="member-main between"><view><text class="small">成长值</text><text class="strong">3,680</text></view><view class="upgrade"><view><text></text></view><text class="small">再消费 ¥320 升级钻石会员</text></view></view>
+    <view class="member-top between"><view><text class="crown">♛</text><text>鲜福{{user.memberLevelName}}</text></view><text>会员中心 ›</text></view>
+    <view class="member-main between"><view><text class="small">累计消费</text><text class="strong">¥{{user.totalSpent}}</text></view><view class="upgrade"><view><text></text></view><text class="small">消费金额由服务端实时累计</text></view></view>
     <view class="member-rights"><text>会员专享价</text><text>双倍积分</text><text>每月券包</text></view>
   </view>
 
@@ -22,7 +22,7 @@
   </view>
 
   <view class="asset-row card">
-    <view><text class="strong">3</text><text>优惠券</text></view><view><text class="strong">2,680</text><text>可用积分</text></view><view><text class="strong">8</text><text>收藏商品</text></view>
+    <view><text class="strong">{{couponCount}}</text><text>优惠券</text></view><view><text class="strong">{{user.points}}</text><text>可用积分</text></view><view><text class="strong">{{favoriteCount}}</text><text>收藏商品</text></view>
   </view>
 
   <view class="menu-card card">

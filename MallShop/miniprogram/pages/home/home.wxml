@@ -2,7 +2,7 @@
   <view class="service-row between">
     <view>
       <view class="location row"><text class="pin">●</text><text>幸福里社区</text><text class="chevron">⌄</text></view>
-      <text class="arrival">预计 30 分钟送达</text>
+      <text class="arrival">预计 {{delivery.promiseMinutes}} 分钟送达</text>
     </view>
     <button class="share-btn" open-type="share">↗</button>
   </view>
@@ -16,8 +16,8 @@
   <view class="hero card shadow {{loading ? 'skeleton' : ''}}">
     <view class="hero-copy">
       <view class="eyebrow">今日鲜采 · 即刻送达</view>
-      <view class="hero-title">新鲜三公里<text>30 分钟到家</text></view>
-      <view class="hero-sub">满 30 元免配送费</view>
+      <view class="hero-title">新鲜{{delivery.maxDistanceKm}}公里<text>{{delivery.promiseMinutes}} 分钟到家</text></view>
+      <view class="hero-sub">满 {{delivery.freeThreshold}} 元免配送费</view>
       <button class="hero-btn" bindtap="goCategory">马上选购 <text>→</text></button>
     </view>
     <view class="hero-images">
@@ -29,9 +29,9 @@
 
   <view class="notice row">
     <text class="notice-icon">闪</text>
-    <text class="notice-main">城区 3 公里配送</text>
+    <text class="notice-main">城区 {{delivery.maxDistanceKm}} 公里配送</text>
     <text class="notice-dot">·</text>
-    <text>30 分钟送货上门</text>
+    <text>{{delivery.promiseMinutes}} 分钟送货上门</text>
   </view>
 
   <view class="quick-grid card">

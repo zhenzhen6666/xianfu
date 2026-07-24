@@ -6,6 +6,7 @@
   </scroll-view>
 
   <view class="orders-list">
+    <view class="loading-line" wx:if="{{loading}}">正在同步门店订单…</view>
     <view class="order-card card" wx:for="{{orders}}" wx:key="id">
       <view class="order-head between"><view><text>订单 {{item.id}}</text><text class="small">{{item.createdAt}}</text></view><text class="status {{item.status}}">{{item.statusText}}</text></view>
       <view class="order-products">
@@ -14,11 +15,11 @@
       </view>
       <view class="order-summary"><text>商品合计 ¥{{item.subtotal}}</text><text>配送费 ¥{{item.deliveryFee}}</text><view>实付 <text class="strong">¥{{item.total}}</text></view></view>
       <view class="order-actions">
-        <button wx:if="{{item.status === 'wait_pay'}}" class="light" bindtap="afterSale">取消订单</button>
+        <button wx:if="{{item.status === 'wait_pay'}}" class="light" data-id="{{item.id}}" bindtap="cancelOrder">取消订单</button>
         <button wx:if="{{item.status === 'wait_pay'}}" class="primary" data-id="{{item.id}}" data-action="pay" bindtap="primaryAction">去支付</button>
         <button wx:if="{{item.status === 'shipping'}}" class="light" bindtap="viewProgress">配送进度</button>
         <button wx:if="{{item.status === 'shipping'}}" class="primary" data-id="{{item.id}}" data-action="confirm" bindtap="primaryAction">确认收货</button>
-        <button wx:if="{{item.status === 'complete'}}" class="light" bindtap="afterSale">申请售后</button>
+        <button wx:if="{{item.status === 'complete'}}" class="light" data-id="{{item.id}}" bindtap="afterSale">申请售后</button>
         <button wx:if="{{item.status === 'complete'}}" class="primary" data-id="{{item.id}}" data-action="reorder" bindtap="primaryAction">再来一单</button>
         <button wx:if="{{item.status === 'cancel'}}" class="primary" data-id="{{item.id}}" data-action="reorder" bindtap="primaryAction">重新购买</button>
       </view>

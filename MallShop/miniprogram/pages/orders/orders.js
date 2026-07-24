@@ -1,9 +1,10 @@
-const store = require('../../utils/store')
+const api = require('../../utils/api')
+const adapters = require('../../utils/adapters')
 
 Page({
   data: {
     tabs: [{ key: 'all', label: '全部' }, { key: 'wait_pay', label: '待支付' }, { key: 'shipping', label: '待配送' }, { key: 'complete', label: '已完成' }, { key: 'cancel', label: '已取消' }],
-    active: 'all', orders: []
+    active: 'all', orders: [], loading: false
   },
   onShow() {
     const requested = wx.getStorageSync('xianfupu_order_tab')
@@ -11,38 +12,61 @@ Page({
     wx.removeStorageSync('xianfupu_order_tab')
     this.refresh()
   },
-  refresh() {
-    const saved = store.getOrders()
-    const source = saved.length ? saved : this.demoOrders()
-    const orders = this.data.active === 'all' ? source : source.filter(item => item.status === this.data.active)
-    this.setData({ orders })
-  },
-  demoOrders() {
-    return [
-      { id: 'XF202607201028', createdAt: '07-20 10:28', status: 'shipping', statusText: '待配送', items: [Object.assign({}, store.PRODUCTS[1], { count: 2 }), Object.assign({}, store.PRODUCTS[6], { count: 1 }), Object.assign({}, store.PRODUCTS[7], { count: 1 })], subtotal: '39.30', deliveryFee: '0.00', total: '34.30' },
-      { id: 'XF202607181635', createdAt: '07-18 16:35', status: 'complete', statusText: '已完成', items: [Object.assign({}, store.PRODUCTS[2], { count: 1 }), Object.assign({}, store.PRODUCTS[3], { count: 1 })], subtotal: '29.80', deliveryFee: '3.00', total: '27.80' }
-    ]
-  },
-  selectTab(e) { this.setData({ active: e.currentTarget.dataset.key }, () => this.refresh()) },
-  primaryAction(e) {
-    const { id, action } = e.currentTarget.dataset
-    if (action === 'pay') return this.updateOrder(id, 'shipping', '待配送', '模拟支付成功')
-    if (action === 'confirm') return this.updateOrder(id, 'complete', '已完成', '已确认收货，积分已到账')
-    if (action === 'reorder') {
-      const order = this.data.orders.find(item => item.id === id)
-      order.items.forEach(item => store.addToCart(item.id, item.count))
-      wx.showToast({ title: '已加入购物车', icon: 'success' })
-      return setTimeout(() => wx.navigateTo({ url: '/pages/cart/cart' }), 600)
+  async refresh() {
+    this.setData({ loading: true })
+    try {
+      const summaries = await api.orders(this.data.active === 'all' ? 'ALL' : this.data.active)
+      const details = await Promise.all(summaries.map(item => api.order(item.orderNo)))
+      this.setData({ orders: details.map(adapters.order), loading: false })
+    } catch (error) {
+      this.setData({ loading: false })
+      wx.showToast({ title: error.message, icon: 'none', duration: 3000 })
     }
   },
-  updateOrder(id, status, statusText, toast) {
-    const saved = store.getOrders()
-    const target = saved.find(item => item.id === id)
-    if (!target) return wx.showToast({ title: '演示订单不可修改', icon: 'none' })
-    target.status = status; target.statusText = statusText; wx.setStorageSync('xianfupu_orders', saved)
-    wx.showToast({ title: toast, icon: 'none' }); this.refresh()
+  selectTab(e) { this.setData({ active: e.currentTarget.dataset.key }, () => this.refresh()) },
+  async primaryAction(e) {
+    const { id, action } = e.currentTarget.dataset
+    try {
+      if (action === 'pay') {
+        const payment = await api.createPayment(id)
+        await api.mockPay(payment.paymentNo)
+        wx.showToast({ title: '模拟支付成功', icon: 'success' })
+      } else if (action === 'confirm') {
+        await api.confirmOrder(id)
+        wx.showToast({ title: '已确认收货，积分已到账', icon: 'none' })
+      } else if (action === 'reorder') {
+        const order = this.data.orders.find(item => item.id === id)
+        for (const item of order.items) await api.addCart(item.id, item.count)
+        wx.showToast({ title: '已加入购物车', icon: 'success' })
+        return setTimeout(() => wx.navigateTo({ url: '/pages/cart/cart' }), 500)
+      }
+      await this.refresh()
+    } catch (error) { wx.showToast({ title: error.message, icon: 'none', duration: 3000 }) }
   },
-  viewProgress() { wx.showModal({ title: '配送进度', content: '骑手正在门店取货\n预计 18 分钟后送达', showCancel: false, confirmText: '知道了', confirmColor: '#168A51' }) },
-  afterSale() { wx.showToast({ title: '售后入口已为您打开', icon: 'none' }) },
+  cancelOrder(e) {
+    const id = e.currentTarget.dataset.id
+    wx.showModal({
+      title: '取消订单', content: '取消后库存、优惠券和积分将由后端自动返还。', confirmColor: '#168A51',
+      success: async result => {
+        if (!result.confirm) return
+        try { await api.cancelOrder(id, '用户在小程序取消'); wx.showToast({ title: '订单已取消', icon: 'success' }); await this.refresh() }
+        catch (error) { wx.showToast({ title: error.message, icon: 'none' }) }
+      }
+    })
+  },
+  viewProgress() { wx.showModal({ title: '配送进度', content: '订单已进入配送流程\n请以门店最新履约状态为准', showCancel: false, confirmText: '知道了', confirmColor: '#168A51' }) },
+  afterSale(e) {
+    const id = e.currentTarget.dataset.id
+    wx.showModal({
+      title: '申请售后', editable: true, placeholderText: '请填写售后原因', confirmColor: '#168A51',
+      success: async result => {
+        if (!result.confirm) return
+        try {
+          await api.createAfterSale({ orderNo: id, reason: result.content || '商品售后', description: '由微信小程序提交' })
+          wx.showToast({ title: '售后申请已提交', icon: 'success' })
+        } catch (error) { wx.showToast({ title: error.message, icon: 'none' }) }
+      }
+    })
+  },
   goShopping() { wx.switchTab({ url: '/pages/category/category' }) }
 })
