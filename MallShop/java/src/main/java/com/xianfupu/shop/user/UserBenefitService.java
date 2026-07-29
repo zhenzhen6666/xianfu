@@ -22,19 +22,19 @@ public class UserBenefitService {
     }
 
     public List<CouponView> coupons(long userId, String status) {
-        String condition = status == null || status.isBlank() || "ALL".equalsIgnoreCase(status)
-                ? "" : " AND uc.status = :status";
-        JdbcClient.StatementSpec query = jdbc.sql("""
-                SELECT uc.id, c.code, c.name, c.amount, c.minimum_amount, uc.status,
+        List<CouponView> coupons = jdbc.sql("""
+                SELECT uc.id, c.code, c.name, c.amount, c.minimum_amount, uc.status, c.enabled,
                        c.starts_at, c.ends_at, uc.claimed_at, uc.used_at
                 FROM user_coupons uc JOIN coupons c ON c.id = uc.coupon_id
                 WHERE uc.user_id = :userId
-                """ + condition + " ORDER BY uc.claimed_at DESC")
-                .param("userId", userId);
-        if (!condition.isBlank()) {
-            query = query.param("status", status.toUpperCase());
+                ORDER BY uc.claimed_at DESC
+                """).param("userId", userId).query(CouponView.class).list().stream()
+                .map(this::withCurrentStatus).toList();
+        if (status == null || status.isBlank() || "ALL".equalsIgnoreCase(status)) {
+            return coupons;
         }
-        return query.query(CouponView.class).list();
+        String target = status.toUpperCase();
+        return coupons.stream().filter(item -> target.equals(item.status())).toList();
     }
 
     @Transactional
@@ -162,6 +162,18 @@ public class UserBenefitService {
                 """).param("userId", userId).param("code", productCode).update();
     }
 
+    private CouponView withCurrentStatus(CouponView coupon) {
+        if (!"AVAILABLE".equals(coupon.status())) {
+            return coupon;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        String status = !coupon.enabled() ? "EXPIRED" : now.isBefore(coupon.startsAt()) ? "NOT_STARTED"
+                : !now.isBefore(coupon.endsAt()) ? "EXPIRED" : "AVAILABLE";
+        return new CouponView(coupon.id(), coupon.code(), coupon.name(), coupon.amount(),
+                coupon.minimumAmount(), status, coupon.enabled(), coupon.startsAt(), coupon.endsAt(),
+                coupon.claimedAt(), coupon.usedAt());
+    }
+
     private record CouponDefinition(long id, String code, String name, BigDecimal amount,
                                     BigDecimal minimumAmount, int totalStock, int claimedCount,
                                     int perUserLimit, boolean newUserOnly) {
@@ -171,8 +183,9 @@ public class UserBenefitService {
     }
 
     public record CouponView(long id, String code, String name, BigDecimal amount,
-                             BigDecimal minimumAmount, String status, LocalDateTime startsAt,
-                             LocalDateTime endsAt, LocalDateTime claimedAt, LocalDateTime usedAt) {
+                             BigDecimal minimumAmount, String status, boolean enabled,
+                             LocalDateTime startsAt, LocalDateTime endsAt,
+                             LocalDateTime claimedAt, LocalDateTime usedAt) {
     }
 
     public record PointRecord(int changeAmount, int balanceAfter, String transactionType,

@@ -10,7 +10,7 @@
     <view class="rights card"><view wx:for="{{rights}}" wx:key="name"><text>{{item.icon}}</text><text class="strong">{{item.name}}</text><text class="small">{{item.desc}}</text></view></view>
     <view class="points-card card between" bindtap="goPoints"><view><text class="small">可用积分</text><text class="strong">{{pointsBalance}}</text><text>积分余额来自 Java 服务端</text></view><view class="points-go">积分明细 ›</view></view>
     <view class="coupon-head between"><view><view class="section-title">我的优惠券卡包</view><view class="section-kicker">优惠券状态实时同步</view></view><text>{{coupons.length}} 张</text></view>
-    <view class="coupon" wx:for="{{coupons}}" wx:key="amount"><view class="amount"><text class="small">¥</text><text class="strong">{{item.amount}}</text></view><view class="coupon-info"><text class="strong">会员专享抵扣券</text><text class="small">{{item.condition}} · {{item.date}}</text></view><button bindtap="getCoupon">领取</button></view>
+    <view class="coupon" wx:for="{{coupons}}" wx:key="id"><view class="amount"><text class="small">¥</text><text class="strong">{{item.amount}}</text></view><view class="coupon-info"><text class="strong">{{item.name}}</text><text class="small">{{item.condition}} · {{item.date}}</text></view><button data-status="{{item.status}}" disabled="{{item.status !== 'AVAILABLE'}}" bindtap="useCoupon">{{item.status === 'AVAILABLE' ? '去使用' : item.date}}</button></view>
     <view class="rule card"><text class="strong">积分与升级规则</text><text>· 每消费 1 元可获得 1 积分，金卡会员享双倍积分</text><text>· 累计消费自动升级，成长值长期有效</text><text>· 积分可在结算页抵扣订单现金</text></view>
   </view>
 </view>

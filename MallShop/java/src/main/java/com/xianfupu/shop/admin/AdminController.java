@@ -8,6 +8,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -99,6 +100,24 @@ public class AdminController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void userStatus(@PathVariable long userId, @Valid @RequestBody StatusRequest request) {
         service.setUserStatus(CurrentUser.id(), userId, request.status());
+    }
+
+    @GetMapping("/coupons")
+    List<AdminService.AdminCoupon> coupons() {
+        return service.coupons();
+    }
+
+    @PostMapping("/coupons")
+    @ResponseStatus(HttpStatus.CREATED)
+    AdminService.AdminCoupon createCoupon(@Valid @RequestBody CouponRequest request) {
+        return service.createCoupon(CurrentUser.id(), request.toCommand());
+    }
+
+    @PostMapping("/coupons/{couponCode}/issues")
+    @ResponseStatus(HttpStatus.CREATED)
+    AdminService.CouponIssueResult issueCoupon(@PathVariable String couponCode,
+                                               @Valid @RequestBody CouponIssueRequest request) {
+        return service.issueCoupon(CurrentUser.id(), couponCode, request.mobile());
     }
 
     @GetMapping("/after-sales")
@@ -207,5 +226,21 @@ public class AdminController {
             return new AdminService.ActivityCommand(name, activityType, description, rulesJson,
                     startsAt, endsAt, enabled);
         }
+    }
+
+    public record CouponRequest(@NotBlank @Size(max = 100) String name,
+                                @NotNull @DecimalMin(value = "0.01") BigDecimal amount,
+                                @NotNull @DecimalMin("0") BigDecimal minimumAmount,
+                                @Min(1) int totalStock, @NotNull LocalDateTime startsAt,
+                                @NotNull LocalDateTime endsAt, boolean enabled) {
+        AdminService.CouponCommand toCommand() {
+            return new AdminService.CouponCommand(name, amount, minimumAmount, totalStock,
+                    startsAt, endsAt, enabled);
+        }
+    }
+
+    public record CouponIssueRequest(
+            @NotBlank @Pattern(regexp = "^1[3-9]\\d{9}$", message = "请输入正确的 11 位手机号")
+            String mobile) {
     }
 }

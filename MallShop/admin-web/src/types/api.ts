@@ -163,6 +163,44 @@ export interface Activity {
   enabled: boolean
 }
 
+export interface Coupon {
+  id: number
+  code: string
+  name: string
+  amount: number
+  minimumAmount: number
+  totalStock: number
+  claimedCount: number
+  remainingStock: number
+  perUserLimit: number
+  startsAt: string
+  endsAt: string
+  enabled: boolean
+  status: 'ACTIVE' | 'NOT_STARTED' | 'EXPIRED' | 'DISABLED' | 'OUT_OF_STOCK'
+  createdAt: string
+}
+
+export interface CouponPayload {
+  name: string
+  amount: number
+  minimumAmount: number
+  totalStock: number
+  startsAt: string
+  endsAt: string
+  enabled: boolean
+}
+
+export interface CouponIssue {
+  userCouponId: number
+  couponCode: string
+  couponName: string
+  userId: number
+  nickname: string
+  mobile: string
+  status: string
+  issuedAt: string
+}
+
 export interface ApiError {
   status?: number
   code?: string

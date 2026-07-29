@@ -192,6 +192,80 @@ public class AdminService {
         return query.query(AdminUser.class).list();
     }
 
+    public List<AdminCoupon> coupons() {
+        return jdbc.sql("""
+                SELECT id, code, name, amount, minimum_amount, total_stock, claimed_count,
+                       per_user_limit, starts_at, ends_at, enabled, created_at
+                FROM coupons ORDER BY id DESC
+                """).query(CouponRow.class).list().stream().map(this::toAdminCoupon).toList();
+    }
+
+    @Transactional
+    public AdminCoupon createCoupon(long adminId, CouponCommand command) {
+        if (!command.endsAt().isAfter(command.startsAt())) {
+            throw BusinessException.badRequest("INVALID_COUPON_PERIOD", "优惠券结束时间必须晚于开始时间");
+        }
+        String code = "CP" + UUID.randomUUID().toString().replace("-", "")
+                .substring(0, 12).toUpperCase();
+        jdbc.sql("""
+                INSERT INTO coupons(code, name, coupon_type, amount, minimum_amount, total_stock,
+                    claimed_count, per_user_limit, new_user_only, starts_at, ends_at, enabled)
+                VALUES (:code, :name, 'FIXED', :amount, :minimumAmount, :totalStock,
+                    0, 1, FALSE, :startsAt, :endsAt, :enabled)
+                """).param("code", code).param("name", command.name().trim())
+                .param("amount", command.amount()).param("minimumAmount", command.minimumAmount())
+                .param("totalStock", command.totalStock()).param("startsAt", command.startsAt())
+                .param("endsAt", command.endsAt()).param("enabled", command.enabled()).update();
+        audit(adminId, "CREATE_COUPON", "COUPON", code, command);
+        return coupons().stream().filter(item -> item.code().equals(code)).findFirst().orElseThrow();
+    }
+
+    @Transactional
+    public CouponIssueResult issueCoupon(long adminId, String couponCode, String mobile) {
+        String normalizedMobile = mobile == null ? "" : mobile.trim();
+        String normalizedCode = couponCode == null ? "" : couponCode.trim().toUpperCase();
+        CouponIssueDefinition coupon = jdbc.sql("""
+                SELECT id, code, name, total_stock, claimed_count, per_user_limit,
+                       starts_at, ends_at, enabled
+                FROM coupons WHERE code = :code FOR UPDATE
+                """).param("code", normalizedCode).query(CouponIssueDefinition.class).optional()
+                .orElseThrow(() -> BusinessException.notFound("COUPON_NOT_FOUND", "优惠券不存在"));
+        if (!coupon.enabled() || !coupon.endsAt().isAfter(LocalDateTime.now())) {
+            throw BusinessException.conflict("COUPON_NOT_ISSUABLE", "优惠券已停用或已过期，不能继续发放");
+        }
+        if (coupon.claimedCount() >= coupon.totalStock()) {
+            throw BusinessException.conflict("COUPON_OUT_OF_STOCK", "优惠券库存已发完");
+        }
+        CouponUser user = jdbc.sql("""
+                SELECT id, nickname, mobile FROM users
+                WHERE mobile = :mobile AND role = 'USER' AND status = 'ACTIVE'
+                ORDER BY id LIMIT 1
+                """).param("mobile", normalizedMobile).query(CouponUser.class).optional()
+                .orElseThrow(() -> BusinessException.notFound(
+                        "USER_MOBILE_NOT_FOUND", "未找到该手机号对应的可用用户账户"));
+        long issuedCount = jdbc.sql("""
+                SELECT COUNT(*) FROM user_coupons WHERE user_id = :userId AND coupon_id = :couponId
+                """).param("userId", user.id()).param("couponId", coupon.id()).query(Long.class).single();
+        if (issuedCount >= coupon.perUserLimit()) {
+            throw BusinessException.conflict("COUPON_LIMIT_REACHED", "该用户已拥有这张优惠券");
+        }
+        jdbc.sql("INSERT INTO user_coupons(user_id, coupon_id) VALUES (:userId, :couponId)")
+                .param("userId", user.id()).param("couponId", coupon.id()).update();
+        jdbc.sql("UPDATE coupons SET claimed_count = claimed_count + 1 WHERE id = :id")
+                .param("id", coupon.id()).update();
+        Long userCouponId = jdbc.sql("""
+                SELECT id FROM user_coupons WHERE user_id = :userId AND coupon_id = :couponId
+                ORDER BY id DESC LIMIT 1
+                """).param("userId", user.id()).param("couponId", coupon.id()).query(Long.class).single();
+        String issuedStatus = LocalDateTime.now().isBefore(coupon.startsAt())
+                ? "NOT_STARTED" : "AVAILABLE";
+        CouponIssueResult result = new CouponIssueResult(
+                userCouponId, coupon.code(), coupon.name(), user.id(), user.nickname(),
+                user.mobile(), issuedStatus, LocalDateTime.now());
+        audit(adminId, "ISSUE_COUPON", "USER_COUPON", userCouponId.toString(), result);
+        return result;
+    }
+
     @Transactional
     public void setUserStatus(long adminId, long userId, String status) {
         String target = status.toUpperCase();
@@ -358,6 +432,26 @@ public class AdminService {
         }
     }
 
+    private AdminCoupon toAdminCoupon(CouponRow coupon) {
+        LocalDateTime now = LocalDateTime.now();
+        String status;
+        if (!coupon.enabled()) {
+            status = "DISABLED";
+        } else if (!now.isBefore(coupon.endsAt())) {
+            status = "EXPIRED";
+        } else if (now.isBefore(coupon.startsAt())) {
+            status = "NOT_STARTED";
+        } else if (coupon.claimedCount() >= coupon.totalStock()) {
+            status = "OUT_OF_STOCK";
+        } else {
+            status = "ACTIVE";
+        }
+        return new AdminCoupon(coupon.id(), coupon.code(), coupon.name(), coupon.amount(),
+                coupon.minimumAmount(), coupon.totalStock(), coupon.claimedCount(),
+                Math.max(0, coupon.totalStock() - coupon.claimedCount()), coupon.perUserLimit(),
+                coupon.startsAt(), coupon.endsAt(), coupon.enabled(), status, coupon.createdAt());
+    }
+
     public record ProductCommand(String categoryCode, String name, String subtitle, String description,
                                  String spec, String imageUrl, BigDecimal originalPrice, BigDecimal salePrice,
                                  BigDecimal memberPrice, int stock, String badge, String status, int sortOrder) {
@@ -393,6 +487,37 @@ public class AdminService {
 
     public record AdminUser(long id, String nickname, String mobile, String status, int points,
                             BigDecimal totalSpent, String memberLevelName, LocalDateTime createdAt) {
+    }
+
+    public record CouponCommand(String name, BigDecimal amount, BigDecimal minimumAmount,
+                                int totalStock, LocalDateTime startsAt, LocalDateTime endsAt,
+                                boolean enabled) {
+    }
+
+    private record CouponRow(long id, String code, String name, BigDecimal amount,
+                             BigDecimal minimumAmount, int totalStock, int claimedCount,
+                             int perUserLimit, LocalDateTime startsAt, LocalDateTime endsAt,
+                             boolean enabled, LocalDateTime createdAt) {
+    }
+
+    private record CouponIssueDefinition(long id, String code, String name, int totalStock,
+                                         int claimedCount, int perUserLimit, LocalDateTime startsAt,
+                                         LocalDateTime endsAt, boolean enabled) {
+    }
+
+    private record CouponUser(long id, String nickname, String mobile) {
+    }
+
+    public record AdminCoupon(long id, String code, String name, BigDecimal amount,
+                              BigDecimal minimumAmount, int totalStock, int claimedCount,
+                              int remainingStock, int perUserLimit, LocalDateTime startsAt,
+                              LocalDateTime endsAt, boolean enabled, String status,
+                              LocalDateTime createdAt) {
+    }
+
+    public record CouponIssueResult(long userCouponId, String couponCode, String couponName,
+                                    long userId, String nickname, String mobile, String status,
+                                    LocalDateTime issuedAt) {
     }
 
     public record RefundCommand(BigDecimal amount, String reason) {

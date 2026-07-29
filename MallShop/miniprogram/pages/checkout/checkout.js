@@ -37,12 +37,15 @@ Page({
       const [cart, address, coupons, points] = await Promise.all([
         api.cart(), this.ensureAddress(), api.coupons('AVAILABLE'), api.points()
       ])
-      const eligible = coupons.find(item => Number(cart.subtotal) >= Number(item.minimumAmount))
+      const eligibleCoupons = coupons
+        .filter(item => Number(cart.subtotal) >= Number(item.minimumAmount))
+        .sort((a, b) => Number(b.amount) - Number(a.amount))
+      const eligible = eligibleCoupons[0]
       this.setData({
         address,
         availableCoupons: coupons,
         selectedCouponId: eligible ? eligible.id : null,
-        couponName: eligible ? `${eligible.name}（满${eligible.minimumAmount}减${eligible.amount}）` : '暂无达到门槛的优惠券',
+        couponName: eligible ? this.couponLabel(eligible) : '暂无达到门槛的优惠券',
         pointsBalance: points.balance || 0
       })
       await this.refreshPreview()
@@ -50,6 +53,13 @@ Page({
       this.setData({ loading: false })
       wx.showToast({ title: error.message, icon: 'none', duration: 3500 })
     }
+  },
+
+  couponLabel(coupon) {
+    const rule = Number(coupon.minimumAmount) > 0
+      ? `满${coupon.minimumAmount}减${coupon.amount}`
+      : `无门槛减${coupon.amount}`
+    return `${coupon.name}（${rule}）`
   },
 
   orderPayload() {
@@ -86,11 +96,27 @@ Page({
 
   chooseCoupon(e) {
     const useCoupon = Number(e.currentTarget.dataset.value) > 0
-    const eligible = this.data.availableCoupons.find(item => Number(this.data.subtotal) >= Number(item.minimumAmount))
-    this.setData({
-      selectedCouponId: useCoupon && eligible ? eligible.id : null,
-      couponName: useCoupon && eligible ? `${eligible.name}（满${eligible.minimumAmount}减${eligible.amount}）` : '本单不使用优惠券'
-    }, () => this.refreshPreview().catch(error => wx.showToast({ title: error.message, icon: 'none' })))
+    if (!useCoupon) {
+      return this.setData({
+        selectedCouponId: null,
+        couponName: '本单不使用优惠券'
+      }, () => this.refreshPreview().catch(error => wx.showToast({ title: error.message, icon: 'none' })))
+    }
+    const eligible = this.data.availableCoupons
+      .filter(item => Number(this.data.subtotal) >= Number(item.minimumAmount))
+      .sort((a, b) => Number(b.amount) - Number(a.amount))
+      .slice(0, 6)
+    if (!eligible.length) return wx.showToast({ title: '暂无达到门槛的优惠券', icon: 'none' })
+    wx.showActionSheet({
+      itemList: eligible.map(item => this.couponLabel(item)),
+      success: result => {
+        const coupon = eligible[result.tapIndex]
+        this.setData({
+          selectedCouponId: coupon.id,
+          couponName: this.couponLabel(coupon)
+        }, () => this.refreshPreview().catch(error => wx.showToast({ title: error.message, icon: 'none' })))
+      }
+    })
   },
   togglePoints(e) {
     this.setData({ pointsEnabled: e.detail.value }, () => this.refreshPreview().catch(error => wx.showToast({ title: error.message, icon: 'none' })))

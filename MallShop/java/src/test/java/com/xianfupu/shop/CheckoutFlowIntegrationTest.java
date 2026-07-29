@@ -3,6 +3,7 @@ package com.xianfupu.shop;
 import com.xianfupu.shop.admin.AdminService;
 import com.xianfupu.shop.auth.AuthService;
 import com.xianfupu.shop.cart.CartService;
+import com.xianfupu.shop.common.BusinessException;
 import com.xianfupu.shop.order.OrderService;
 import com.xianfupu.shop.payment.PaymentService;
 import com.xianfupu.shop.user.AddressService;
@@ -12,8 +13,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 class CheckoutFlowIntegrationTest {
@@ -72,5 +75,42 @@ class CheckoutFlowIntegrationTest {
         assertThat(completed.status()).isEqualTo("COMPLETED");
         assertThat(authService.findById(userId).points()).isGreaterThanOrEqualTo(26);
         assertThat(authService.findById(userId).totalSpent()).isEqualByComparingTo("26.19");
+    }
+
+    @Test
+    void adminCreatesAndIssuesThresholdFreeCouponToMobileAccount() {
+        long adminId = authService.devAdminLogin("TestAdminSecret", "运营管理员").user().id();
+        AuthService.UserProfile user = authService.devLogin("13900001234", "优惠券用户").user();
+        LocalDateTime now = LocalDateTime.now();
+
+        AdminService.AdminCoupon coupon = adminService.createCoupon(adminId,
+                new AdminService.CouponCommand("无门槛 3 元券", new BigDecimal("3.00"),
+                        BigDecimal.ZERO, 20, now.minusMinutes(1), now.plusDays(7), true));
+        assertThat(coupon.minimumAmount()).isEqualByComparingTo("0.00");
+        assertThat(coupon.status()).isEqualTo("ACTIVE");
+
+        AdminService.CouponIssueResult issued =
+                adminService.issueCoupon(adminId, coupon.code(), "13900001234");
+        assertThat(issued.userId()).isEqualTo(user.id());
+        assertThat(issued.status()).isEqualTo("AVAILABLE");
+        assertThat(benefitService.coupons(user.id(), "AVAILABLE"))
+                .anyMatch(item -> item.id() == issued.userCouponId()
+                        && item.amount().compareTo(new BigDecimal("3.00")) == 0);
+        assertThatThrownBy(() -> adminService.issueCoupon(adminId, coupon.code(), "13900001234"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("该用户已拥有这张优惠券");
+
+        AddressService.AddressView address = addressService.create(user.id(),
+                new AddressService.AddressCommand("优惠券用户", "13900001234", "测试小区 1 号",
+                        null, null, BigDecimal.ONE, true));
+        cartService.add(user.id(), "p1", 1, null);
+        OrderService.OrderPreview preview = orderService.preview(user.id(),
+                new OrderService.OrderCommand(address.id(), issued.userCouponId(), 0, null));
+        assertThat(preview.couponDiscount()).isEqualByComparingTo("3.00");
+
+        AdminService.AdminCoupon refreshed = adminService.coupons().stream()
+                .filter(item -> item.code().equals(coupon.code())).findFirst().orElseThrow();
+        assertThat(refreshed.claimedCount()).isEqualTo(1);
+        assertThat(refreshed.remainingStock()).isEqualTo(19);
     }
 }

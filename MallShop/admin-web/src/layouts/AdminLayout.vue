@@ -12,6 +12,7 @@ import {
   Promotion,
   Service,
   Setting,
+  Tickets,
   User,
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
@@ -31,6 +32,7 @@ const menuItems = [
   { path: '/categories', label: '分类管理', icon: Grid },
   { path: '/orders', label: '订单管理', icon: Box },
   { path: '/users', label: '会员用户', icon: User },
+  { path: '/coupons', label: '优惠券发放', icon: Tickets },
   { path: '/after-sales', label: '售后处理', icon: Service },
   { path: '/marketing', label: '营销装修', icon: Promotion },
   { path: '/delivery', label: '配送设置', icon: Setting },

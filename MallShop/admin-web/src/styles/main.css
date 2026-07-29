@@ -134,6 +134,16 @@ a { color: inherit; text-decoration: none; }
 .module-item { display: grid; grid-template-columns: 42px minmax(0,1fr) auto auto; align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 13px; }
 .module-icon, .round-icon { display: grid; width: 42px; height: 42px; place-items: center; color: var(--green-dark); font-weight: 700; background: var(--green-pale); border-radius: 12px; }
 .module-main { min-width: 0; }.module-main > span { color: var(--green); font-size: 9px; font-weight: 700; letter-spacing: 1px; }.module-main h3 { margin: 3px 0; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }.module-main p { margin: 0; color: var(--muted); font-size: 9px; }
+.coupon-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+.coupon-summary > div { display: flex; align-items: center; gap: 14px; padding: 17px 20px; background: #fff; border: 1px solid var(--line); border-radius: 15px; box-shadow: 0 7px 22px rgba(40,66,52,.035); }
+.coupon-summary-icon { display: grid; width: 42px; height: 42px; place-items: center; flex: 0 0 auto; color: #ad7628; font-weight: 700; background: #fff2d8; border-radius: 12px; }
+.coupon-summary-icon.active { color: var(--green); background: var(--green-pale); }.coupon-summary-icon.issued { color: #4c78a8; background: #eaf2fb; }
+.coupon-summary p { display: flex; flex-direction: column; gap: 2px; margin: 0; }.coupon-summary small { color: var(--muted); font-size: 10px; }.coupon-summary strong { color: var(--ink); font-size: 21px; }
+.coupon-name-cell { display: flex; align-items: center; gap: 12px; }.coupon-name-cell > span { display: grid; width: 48px; height: 48px; place-items: center; flex: 0 0 auto; color: #b56c24; font-size: 10px; background: #fff1dd; border-radius: 12px; }.coupon-name-cell > span strong { color: inherit; font-size: 18px; }.coupon-name-cell > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }.coupon-name-cell small { color: var(--muted); font-size: 9px; letter-spacing: .5px; }
+.coupon-stock { display: grid; gap: 7px; max-width: 150px; }.coupon-stock > span { color: #65736b; font-size: 10px; }.coupon-stock .el-progress { --el-color-primary: var(--green); }
+.form-grid .el-input-number, .form-grid .el-date-editor { width: 100%; }
+.issue-coupon-preview { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; padding: 16px 18px; color: #87571b; background: linear-gradient(100deg,#fff0cf,#fffaf0); border: 1px solid #f5dfb3; border-radius: 13px; }.issue-coupon-preview > span { min-width: 90px; font-size: 12px; }.issue-coupon-preview > span strong { font-size: 27px; }.issue-coupon-preview > div { display: flex; flex-direction: column; gap: 5px; }.issue-coupon-preview small { color: #927653; font-size: 10px; }
+.issue-hint { margin: 2px 0 0; color: var(--muted); font-size: 11px; line-height: 1.7; }
 .delivery-layout { display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 20px; }
 .delivery-form-card { padding: 25px 28px; }
 .card-title { display: flex; align-items: center; gap: 13px; margin-bottom: 22px; }
@@ -194,6 +204,7 @@ a { color: inherit; text-decoration: none; }
   .page-body { padding: 24px 18px 38px; }.page-toolbar { align-items: flex-start; }.toolbar-actions { flex-wrap: wrap; justify-content: flex-end; }
   .filter-bar { flex-wrap: wrap; }.result-count { width: 100%; margin-left: 0; }.search-input { width: 100%; }
   .login-page { grid-template-columns: 1fr; }.login-story { display: none; }.login-panel { min-height: 100vh; padding: 35px 25px; }.login-footer { bottom: 16px; }
+  .coupon-summary { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {

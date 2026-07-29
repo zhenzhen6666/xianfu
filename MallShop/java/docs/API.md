@@ -109,6 +109,8 @@
 - `GET/PUT /admin/delivery-config`
 - `GET /admin/users`
 - `PATCH /admin/users/{userId}/status`
+- `GET/POST /admin/coupons`：查询或创建满减/无门槛优惠券
+- `POST /admin/coupons/{couponCode}/issues`：按已注册手机号发放到用户券账户
 - `GET/PATCH /admin/after-sales...`
 
 所有关键管理操作都会写入 `admin_audit_logs`。

@@ -23,13 +23,20 @@ Page({
         coupons: coupons.map(item => ({
           id: item.id,
           code: item.code,
+          name: item.name,
           amount: Number(item.amount),
-          condition: `满 ${item.minimumAmount} 元可用`,
-          date: item.status === 'AVAILABLE' ? '可使用' : item.status
+          condition: Number(item.minimumAmount) > 0 ? `满 ${item.minimumAmount} 元可用` : '无门槛可用',
+          status: item.status,
+          date: ({ AVAILABLE: '可使用', USED: '已使用', EXPIRED: '已过期', NOT_STARTED: '未开始' })[item.status] || item.status
         }))
       })
     } catch (error) { wx.showToast({ title: error.message, icon: 'none' }) }
   },
-  getCoupon() { wx.showToast({ title: '优惠券已在您的卡包中', icon: 'success' }) },
+  useCoupon(e) {
+    if (e.currentTarget.dataset.status !== 'AVAILABLE') {
+      return wx.showToast({ title: '该优惠券当前不可使用', icon: 'none' })
+    }
+    wx.navigateTo({ url: '/pages/checkout/checkout' })
+  },
   goPoints() { wx.showToast({ title: `当前可用 ${this.data.pointsBalance} 积分`, icon: 'none' }) }
 })
