@@ -59,15 +59,15 @@ onMounted(load)
       <span class="result-count">共 {{ filtered.length }} 笔订单</span>
     </div>
     <article class="content-card table-card" v-loading="loading">
-      <el-table :data="filtered" class="clean-table">
-        <el-table-column label="订单信息" min-width="205"><template #default="{ row }"><div class="two-line"><strong>{{ row.orderNo }}</strong><small>{{ dateTime(row.createdAt) }}</small></div></template></el-table-column>
+      <el-table :data="filtered" class="clean-table" @row-dblclick="openDetail">
+        <el-table-column label="订单信息" min-width="205"><template #default="{ row }"><div class="two-line"><el-button class="order-number" link type="primary" @click.stop="openDetail(row)">{{ row.orderNo }}</el-button><small>{{ dateTime(row.createdAt) }}</small></div></template></el-table-column>
         <el-table-column label="顾客" width="130"><template #default="{ row }"><div class="two-line"><strong>{{ row.nickname }}</strong><small>{{ row.mobile || '未留手机号' }}</small></div></template></el-table-column>
         <el-table-column label="配送信息" min-width="275"><template #default="{ row }"><div class="two-line"><strong>{{ row.receiverName }} · {{ row.receiverMobile }}</strong><small>{{ row.receiverAddress }}</small></div></template></el-table-column>
         <el-table-column label="金额" width="125"><template #default="{ row }"><div class="two-line"><strong>{{ money(row.payAmount) }}</strong><small>配送费 {{ money(row.deliveryFee) }}</small></div></template></el-table-column>
         <el-table-column label="状态" width="110"><template #default="{ row }"><StatusTag :status="row.status" /></template></el-table-column>
         <el-table-column label="操作" width="290" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" :icon="View" @click="openDetail(row)">详情</el-button>
+            <el-button size="small" plain type="primary" :icon="View" @click="openDetail(row)">查看详情</el-button>
             <el-button v-if="row.status === 'SHIPPING'" link type="success" @click="updateStatus(row, 'COMPLETED')">确认完成</el-button>
             <el-button v-if="row.status === 'WAIT_PAY'" link type="danger" @click="updateStatus(row, 'CANCELLED')">取消</el-button>
             <el-button v-if="['SHIPPING', 'COMPLETED'].includes(row.status)" link type="warning" @click="openRefund(row)">退款</el-button>
@@ -138,6 +138,7 @@ onMounted(load)
 
 <style scoped>
 .order-detail { min-height: 260px; }
+.order-number { align-self: flex-start; height: auto; padding: 0; font-weight: 700; }
 .detail-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding: 16px 18px; background: #f3f7f3; border-radius: 12px; }
 .detail-heading > div { display: flex; flex-direction: column; gap: 5px; }
 .detail-heading small { color: #87948c; }
