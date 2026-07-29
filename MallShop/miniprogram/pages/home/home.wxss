@@ -30,7 +30,7 @@
 .quick-icon.mint { background: #DFF5E7; color: #0A7B45; }.quick-icon.orange { background: #FFE6D7; color: #E85D25; }.quick-icon.pink { background: #FFE7EC; color: #D84B70; }.quick-icon.yellow { background: #FFF0B9; color: #A26700; }
 .zone-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18rpx; margin-top: 22rpx; }
 .zone { position: relative; overflow: hidden; height: 220rpx; padding: 26rpx; border-radius: 28rpx; }
-.zone-cook { background: #FFE8E7; }.zone-deal { background: #FFF2CD; }
+.zone-pink { background: #FFE8E7; }.zone-yellow { background: #FFF2CD; }.zone-mint { background: #E6F6EC; }.zone-orange { background: #FFE9DA; }
 .zone-kicker { font-size: 20rpx; color: #8B665C; }.zone-title { margin-top: 6rpx; font-size: 32rpx; font-weight: 900; }.zone-link { margin-top: 22rpx; font-size: 21rpx; font-weight: 700; }
 .zone image { position: absolute; width: 140rpx; height: 140rpx; border-radius: 50%; right: -18rpx; bottom: -18rpx; }
 .section-head { margin: 54rpx 4rpx 24rpx; }.more { color: var(--green); font-size: 25rpx; font-weight: 700; }.more text { font-size: 36rpx; }

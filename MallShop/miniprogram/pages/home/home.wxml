@@ -28,10 +28,10 @@
   </view>
 
   <view class="notice row">
-    <text class="notice-icon">闪</text>
-    <text class="notice-main">城区 {{delivery.maxDistanceKm}} 公里配送</text>
+    <text class="notice-icon">{{notice.icon}}</text>
+    <text class="notice-main">{{notice.primaryText}}</text>
     <text class="notice-dot">·</text>
-    <text>{{delivery.promiseMinutes}} 分钟送货上门</text>
+    <text>{{notice.secondaryText}}</text>
   </view>
 
   <view class="quick-grid card">
@@ -42,17 +42,11 @@
   </view>
 
   <view class="zone-grid">
-    <view class="zone zone-cook" data-type="clean" bindtap="goActivity">
-      <view class="zone-kicker">省心搭配</view>
-      <view class="zone-title">在家做饭</view>
-      <view class="zone-link">去看看 →</view>
-      <image src="/assets/products/mushroom.jpg" mode="aspectFill" />
-    </view>
-    <view class="zone zone-deal" data-type="deal" bindtap="goActivity">
-      <view class="zone-kicker">本周爆款</view>
-      <view class="zone-title">9.9 特惠</view>
-      <view class="zone-link">限时抢 →</view>
-      <image src="/assets/products/orange.jpg" mode="aspectFill" />
+    <view class="zone zone-{{item.theme}}" wx:for="{{zones}}" wx:key="title" data-type="{{item.type}}" bindtap="goActivity">
+      <view class="zone-kicker">{{item.kicker}}</view>
+      <view class="zone-title">{{item.title}}</view>
+      <view class="zone-link">{{item.linkText}}</view>
+      <image src="{{item.image}}" mode="aspectFill" />
     </view>
   </view>
 
