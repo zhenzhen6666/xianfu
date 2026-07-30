@@ -56,7 +56,7 @@
   </view>
 
   <view class="product-grid">
-    <view class="product-card card" wx:for="{{products}}" wx:key="id">
+    <view class="product-card card" wx:for="{{products}}" wx:key="id" data-id="{{item.id}}" bindtap="goProduct">
       <view class="product-media {{loading ? 'skeleton' : ''}}">
         <image src="{{item.image}}" mode="aspectFill" lazy-load="true" />
         <text class="product-badge">{{item.badge}}</text>
@@ -66,7 +66,7 @@
         <view class="product-spec">{{item.spec}}</view>
         <view class="between product-bottom">
           <view><text class="price-symbol price">¥</text><text class="price">{{item.price}}</text></view>
-          <button class="add-btn" data-id="{{item.id}}" bindtap="addCart">＋</button>
+          <button class="add-btn" data-id="{{item.id}}" catchtap="addCart">＋</button>
         </view>
       </view>
     </view>

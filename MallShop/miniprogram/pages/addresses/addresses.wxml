@@ -1,0 +1,10 @@
+<view class="address-page">
+  <view class="address-card" wx:for="{{items}}" wx:key="id" data-id="{{item.id}}" bindtap="select">
+    <view class="top"><text class="name">{{item.name}}</text><text>{{item.phone}}</text><text class="default" wx:if="{{item.isDefault}}">默认</text></view>
+    <text class="detail">{{item.detail}}</text>
+    <view class="actions"><text wx:if="{{!item.isDefault}}" data-id="{{item.id}}" catchtap="setDefault">设为默认</text><view><text data-id="{{item.id}}" catchtap="edit">编辑</text><text data-id="{{item.id}}" catchtap="remove">删除</text></view></view>
+  </view>
+  <view class="empty" wx:if="{{!loading&&!items.length}}">还没有收货地址</view>
+  <button class="add" bindtap="add">＋ 新增收货地址</button>
+</view>
+<view class="mask" wx:if="{{editing}}" bindtap="close"><view class="sheet safe-bottom" catchtap="noop"><view class="head"><strong>{{form.id?'编辑地址':'新增地址'}}</strong><text bindtap="close">×</text></view><label>收货人<input value="{{form.name}}" data-field="name" bindinput="bind"/></label><label>手机号<input value="{{form.phone}}" data-field="phone" type="number" maxlength="11" bindinput="bind"/></label><label>详细地址<textarea value="{{form.detail}}" data-field="detail" bindinput="bind"/></label><label class="switch">设为默认地址<switch checked="{{form.isDefault}}" data-field="isDefault" bindchange="bind" color="#168a51"/></label><button class="save" bindtap="save">保存地址</button></view></view>

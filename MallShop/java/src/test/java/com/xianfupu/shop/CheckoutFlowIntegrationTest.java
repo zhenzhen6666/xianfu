@@ -4,11 +4,13 @@ import com.xianfupu.shop.admin.AdminService;
 import com.xianfupu.shop.admin.AdminOrderNotificationService;
 import com.xianfupu.shop.auth.AuthService;
 import com.xianfupu.shop.cart.CartService;
+import com.xianfupu.shop.catalog.CatalogService;
 import com.xianfupu.shop.common.BusinessException;
 import com.xianfupu.shop.order.OrderService;
 import com.xianfupu.shop.payment.PaymentService;
 import com.xianfupu.shop.user.AddressService;
 import com.xianfupu.shop.user.UserBenefitService;
+import com.xianfupu.shop.user.AfterSaleService;
 import com.xianfupu.shop.security.AuthSessionService;
 import com.xianfupu.shop.security.JwtService;
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,10 @@ class CheckoutFlowIntegrationTest {
     AuthSessionService authSessionService;
     @Autowired
     JwtService jwtService;
+    @Autowired
+    AfterSaleService afterSaleService;
+    @Autowired
+    CatalogService catalogService;
 
     @Test
     void completesCheckoutPaymentAndMemberRewardFlow() {
@@ -102,6 +108,17 @@ class CheckoutFlowIntegrationTest {
                 .noneMatch(item -> item.orderNo().equals(order.orderNo()));
         assertThat(authService.findById(userId).points()).isGreaterThanOrEqualTo(26);
         assertThat(authService.findById(userId).totalSpent()).isEqualByComparingTo("26.19");
+
+        AfterSaleService.AfterSaleView afterSale = afterSaleService.create(
+                userId, order.orderNo(), "商品品质问题", "包装破损",
+                java.util.List.of("/api/files/evidence-test.jpg"));
+        assertThat(afterSale.images()).containsExactly("/api/files/evidence-test.jpg");
+        adminService.updateAfterSale(adminId, afterSale.afterSaleNo(), "APPROVED",
+                "同意退款", new BigDecimal("10.00"));
+        AfterSaleService.AfterSaleView processed = afterSaleService.get(userId, afterSale.afterSaleNo());
+        assertThat(processed.refundStatus()).isEqualTo("SUCCEEDED");
+        assertThat(processed.refundedAmount()).isEqualByComparingTo("10.00");
+        assertThat(processed.history()).hasSizeGreaterThanOrEqualTo(2);
     }
 
     @Test
@@ -119,6 +136,24 @@ class CheckoutFlowIntegrationTest {
         JwtService.TokenClaims refreshedClaims = jwtService.verify(refreshed.accessToken());
         assertThat(authSessionService.isActive(
                 refreshedClaims.sessionId(), refreshedClaims.userId(), "USER")).isFalse();
+    }
+
+    @Test
+    void selectsIndependentProductSkuAndKeepsSpecOnOrder() {
+        AuthService.UserProfile user = authService.devLogin("13500007777", "多规格用户").user();
+        AddressService.AddressView address = addressService.create(user.id(),
+                new AddressService.AddressCommand("多规格用户", "13500007777", "规格测试地址",
+                        null, null, BigDecimal.ONE, true));
+        assertThat(catalogService.productDetail("p1").skus()).hasSizeGreaterThan(1);
+
+        CartService.CartView cart = cartService.add(user.id(), "p1", 2, null, "p1-LARGE");
+        assertThat(cart.items().get(0).spec()).isEqualTo("约 800g/份");
+        assertThat(cart.items().get(0).price()).isEqualByComparingTo("7.50");
+
+        OrderService.OrderDetail order = orderService.create(user.id(),
+                new OrderService.OrderCommand(address.id(), null, 0, null, "sku-order-test"));
+        assertThat(order.items().get(0).spec()).isEqualTo("约 800g/份");
+        assertThat(order.items().get(0).count()).isEqualTo(2);
     }
 
     @Test
@@ -156,6 +191,13 @@ class CheckoutFlowIntegrationTest {
                 .filter(item -> item.code().equals(coupon.code())).findFirst().orElseThrow();
         assertThat(refreshed.claimedCount()).isEqualTo(1);
         assertThat(refreshed.remainingStock()).isEqualTo(19);
+
+        authService.devLogin("13600001234", "批量发券用户");
+        AdminService.CouponBatchResult batch = adminService.batchIssueCoupon(
+                adminId, coupon.code(), java.util.List.of("13600001234", "13900001234", "123"));
+        assertThat(batch.successCount()).isEqualTo(1);
+        assertThat(batch.failedCount()).isEqualTo(2);
+        assertThat(adminService.couponIssueRecords(coupon.code())).hasSize(4);
     }
 
     @Test

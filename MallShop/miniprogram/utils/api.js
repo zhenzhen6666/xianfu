@@ -1,10 +1,29 @@
 const { request, ensureLogin } = require('./request')
+const config = require('./config')
 
 const get = (path, data, auth = true) => request(path, { data, auth })
 const post = (path, data, auth = true) => request(path, { method: 'POST', data, auth })
 const put = (path, data) => request(path, { method: 'PUT', data })
 const patch = (path, data) => request(path, { method: 'PATCH', data })
 const remove = path => request(path, { method: 'DELETE' })
+
+function uploadAfterSale(filePath) {
+  return ensureLogin().then(() => request('/users/me/profile')).then(() => new Promise((resolve, reject) => {
+    wx.uploadFile({
+      url: `${config.getApiBaseUrl()}/uploads/after-sale`,
+      filePath,
+      name: 'file',
+      header: { Authorization: `Bearer ${wx.getStorageSync(config.TOKEN_KEY)}` },
+      success(response) {
+        let body = {}
+        try { body = JSON.parse(response.data || '{}') } catch (error) {}
+        if (response.statusCode >= 200 && response.statusCode < 300) return resolve(body)
+        reject(new Error(body.message || '图片上传失败'))
+      },
+      fail: reject
+    })
+  }))
+}
 
 module.exports = {
   ensureLogin,
@@ -16,7 +35,7 @@ module.exports = {
   activity: code => get(`/activities/${code}`, null, false),
   delivery: () => get('/config/delivery', null, false),
   cart: () => get('/cart'),
-  addCart: (productId, quantity = 1, activityCode) => post('/cart/items', { productId, quantity, activityCode }),
+  addCart: (productId, quantity = 1, activityCode, skuCode) => post('/cart/items', { productId, quantity, activityCode, skuCode }),
   updateCart: (id, data) => patch(`/cart/items/${id}`, data),
   selectAll: selected => put('/cart/selection', { selected }),
   removeCart: id => remove(`/cart/items/${id}`),
@@ -24,6 +43,7 @@ module.exports = {
   addresses: () => get('/addresses'),
   createAddress: data => post('/addresses', data),
   updateAddress: (id, data) => put(`/addresses/${id}`, data),
+  removeAddress: id => remove(`/addresses/${id}`),
   coupons: (status = 'ALL') => get('/users/me/coupons', { status }),
   points: () => get('/users/me/points'),
   profile: () => get('/users/me/profile'),
@@ -47,5 +67,6 @@ module.exports = {
   }, false),
   createAfterSale: data => post('/after-sales', data),
   afterSales: () => get('/after-sales'),
-  afterSale: no => get(`/after-sales/${no}`)
+  afterSale: no => get(`/after-sales/${no}`),
+  uploadAfterSale
 }

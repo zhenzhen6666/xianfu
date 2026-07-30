@@ -53,6 +53,17 @@ export interface Product {
 
 export type ProductPayload = Omit<Product, 'productCode' | 'categoryName' | 'sales' | 'updatedAt'>
 
+export interface ProductSku {
+  skuCode?: string
+  specName: string
+  originalPrice: number
+  salePrice: number
+  memberPrice?: number
+  stock: number
+  enabled?: boolean
+  sortOrder?: number
+}
+
 export interface Order {
   orderNo: string
   status: string
@@ -152,7 +163,15 @@ export interface AfterSale {
   refundedAmount: number
   refundError?: string
   merchantReply?: string
+  imageCount: number
   createdAt: string
+}
+
+export interface AfterSaleDetail {
+  afterSaleNo: string; orderNo: string; reason: string; description?: string; status: string
+  refundAmount: number; refundStatus: string; refundedAmount: number; refundError?: string
+  merchantReply?: string; images: string[]; createdAt: string
+  history: Array<{ status: string; refundStatus: string; message: string; createdAt: string }>
 }
 
 export interface Category {
@@ -222,6 +241,15 @@ export interface CouponIssue {
   mobile: string
   status: string
   issuedAt: string
+}
+
+export interface CouponBatchResult {
+  batchNo: string; totalCount: number; successCount: number; failedCount: number
+}
+
+export interface CouponIssueRecord {
+  batchNo: string; couponCode: string; couponName: string; mobile: string; nickname?: string
+  status: 'SUCCESS' | 'FAILED'; failureReason?: string; createdAt: string
 }
 
 export interface ApiError {

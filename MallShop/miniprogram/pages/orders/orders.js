@@ -57,16 +57,7 @@ Page({
   viewProgress() { wx.showModal({ title: '配送进度', content: '订单已进入配送流程\n请以门店最新履约状态为准', showCancel: false, confirmText: '知道了', confirmColor: '#168A51' }) },
   afterSale(e) {
     const id = e.currentTarget.dataset.id
-    wx.showModal({
-      title: '申请售后', editable: true, placeholderText: '请填写售后原因', confirmColor: '#168A51',
-      success: async result => {
-        if (!result.confirm) return
-        try {
-          await api.createAfterSale({ orderNo: id, reason: result.content || '商品售后', description: '由微信小程序提交' })
-          wx.showToast({ title: '售后申请已提交', icon: 'success' })
-        } catch (error) { wx.showToast({ title: error.message, icon: 'none' }) }
-      }
-    })
+    wx.navigateTo({ url: `/pages/after-sale-apply/after-sale-apply?orderNo=${id}` })
   },
   goShopping() { wx.switchTab({ url: '/pages/category/category' }) }
 })

@@ -31,7 +31,8 @@ public class CartController {
 
     @PostMapping("/items")
     CartService.CartView add(@Valid @RequestBody AddItemRequest request) {
-        return cartService.add(CurrentUser.id(), request.productId(), request.quantity(), request.activityCode());
+        return cartService.add(CurrentUser.id(), request.productId(), request.quantity(),
+                request.activityCode(), request.skuCode());
     }
 
     @PatchMapping("/items/{productCode}")
@@ -55,7 +56,7 @@ public class CartController {
     }
 
     public record AddItemRequest(@NotBlank String productId, @Min(1) @Max(99) int quantity,
-                                 String activityCode) {
+                                 String activityCode, String skuCode) {
     }
 
     public record UpdateItemRequest(@Min(1) @Max(99) Integer quantity, Boolean selected) {

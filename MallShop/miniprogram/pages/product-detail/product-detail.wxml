@@ -1,0 +1,16 @@
+<view class="detail-page" wx:if="{{product}}">
+  <image class="hero" src="{{product.image}}" mode="aspectFill"/>
+  <view class="main">
+    <view class="title-row"><view><text class="title">{{product.name}}</text><text class="sub">{{product.subtitle}}</text></view><button bindtap="toggleFavorite">{{favorite?'♥':'♡'}}</button></view>
+    <view class="price"><text>¥</text>{{selected.salePriceText}}<text class="original">¥{{selected.originalPriceText}}</text></view>
+    <view class="member" wx:if="{{selected.memberPrice}}">会员价 ¥{{selected.memberPriceText}}</view>
+    <view class="service"><text>30分钟送达</text><text>新鲜保障</text><text>售后无忧</text></view>
+  </view>
+  <view class="section">
+    <text class="section-title">选择规格</text>
+    <view class="sku-list"><view wx:for="{{skus}}" wx:key="skuCode" class="sku {{selected.skuCode===item.skuCode?'active':''}} {{item.stock<1?'disabled':''}}" data-code="{{item.skuCode}}" bindtap="chooseSku"><text>{{item.specName}}</text><small>¥{{item.salePriceText}} · 库存{{item.stock}}</small></view></view>
+    <view class="quantity"><text>购买数量</text><view><button data-delta="-1" bindtap="quantity">−</button><text>{{quantity}}</text><button data-delta="1" bindtap="quantity">＋</button></view></view>
+  </view>
+  <view class="section description"><text class="section-title">商品详情</text><text>{{product.description||'门店当日分拣，新鲜配送到家。'}}</text></view>
+</view>
+<view class="bottom safe-bottom" wx:if="{{product}}"><button class="cart" bindtap="goCart">购物车</button><button class="primary" bindtap="addCart">加入购物车 · ¥{{selected.salePriceText}}</button></view>

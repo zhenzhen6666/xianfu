@@ -39,6 +39,7 @@ Page({
     if (action === 'coupon') return wx.navigateTo({ url: '/pages/coupons/coupons' })
     if (action === 'favorite') return wx.navigateTo({ url: '/pages/favorites/favorites' })
     if (action === 'points') return wx.navigateTo({ url: '/pages/points/points' })
+    if (action === 'address') return wx.navigateTo({ url: '/pages/addresses/addresses' })
     if (action === 'service') return wx.showModal({ title: '鲜福铺在线客服', content: '售后咨询：工作日 08:00—21:00\n商家电话：400-888-6699', confirmText: '知道了', showCancel: false, confirmColor: '#168A51' })
     if (action === 'share') return wx.showShareMenu({ withShareTicket: true })
     if (action === 'settings') {

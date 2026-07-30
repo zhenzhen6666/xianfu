@@ -17,6 +17,10 @@ spring:
   jackson:
     time-zone: Asia/Shanghai
     default-property-inclusion: non_null
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
 
 server:
   port: ${SERVER_PORT:8080}
@@ -46,6 +50,7 @@ app:
   dev-admin-secret: ${DEV_ADMIN_SECRET:Admin@123456}
   order:
     payment-timeout-minutes: ${PAYMENT_TIMEOUT_MINUTES:15}
+  upload-dir: ${UPLOAD_DIR:./uploads}
   cors:
     allowed-origins: ${ALLOWED_ORIGINS:*}
 

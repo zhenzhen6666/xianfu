@@ -96,19 +96,30 @@ public class OrderService {
         }, keyHolder);
         long orderId = keyHolder.getKey().longValue();
         for (CheckoutItem item : preview.items()) {
-            int changed = jdbc.sql("""
-                    UPDATE products SET stock = stock - :quantity, version = version + 1,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id = :productId AND stock >= :quantity AND status = 'ON_SALE'
-                    """).param("quantity", item.count()).param("productId", item.productId()).update();
+            int changed;
+            if (item.skuId() != null) {
+                changed = jdbc.sql("""
+                        UPDATE product_skus SET stock = stock - :quantity, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :skuId AND stock >= :quantity AND enabled = TRUE
+                        """).param("quantity", item.count()).param("skuId", item.skuId()).update();
+                if (changed == 1) syncProductStock(item.productId());
+            } else {
+                changed = jdbc.sql("""
+                        UPDATE products SET stock = stock - :quantity, version = version + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :productId AND stock >= :quantity AND status = 'ON_SALE'
+                        """).param("quantity", item.count()).param("productId", item.productId()).update();
+            }
             if (changed == 0) {
                 throw BusinessException.conflict("INSUFFICIENT_STOCK", item.name() + " 库存不足");
             }
             jdbc.sql("""
-                    INSERT INTO order_items(order_id, product_id, product_code, product_name, spec,
-                        image_url, unit_price, quantity, line_amount)
-                    VALUES (:orderId, :productId, :code, :name, :spec, :image, :price, :quantity, :amount)
+                    INSERT INTO order_items(order_id, product_id, sku_id, sku_code, product_code,
+                        product_name, spec, image_url, unit_price, quantity, line_amount)
+                    VALUES (:orderId, :productId, :skuId, :skuCode, :code, :name, :spec,
+                        :image, :price, :quantity, :amount)
                     """).param("orderId", orderId).param("productId", item.productId())
+                    .param("skuId", item.skuId()).param("skuCode", item.skuCode())
                     .param("code", item.id()).param("name", item.name()).param("spec", item.spec())
                     .param("image", item.image()).param("price", item.price()).param("quantity", item.count())
                     .param("amount", item.lineAmount()).update();
@@ -286,17 +297,24 @@ public class OrderService {
         }
         String lock = lockProducts ? " FOR UPDATE" : "";
         List<CheckoutItem> items = jdbc.sql("""
-                SELECT p.id AS product_id, p.product_code AS id, p.name, p.spec, p.image_url AS image,
+                SELECT p.id AS product_id, sku.id AS sku_id, sku.sku_code,
+                       p.product_code AS id, p.name, COALESCE(sku.spec_name, p.spec) AS spec,
+                       p.image_url AS image,
                        COALESCE(ci.price_override,
-                           CASE WHEN ml.code <> 'NORMAL' AND p.member_price IS NOT NULL
-                                THEN p.member_price ELSE p.sale_price END) AS price,
-                       p.sale_price, p.stock, ci.quantity AS count,
+                           CASE WHEN ml.code <> 'NORMAL' AND COALESCE(sku.member_price, p.member_price) IS NOT NULL
+                                THEN COALESCE(sku.member_price, p.member_price)
+                                ELSE COALESCE(sku.sale_price, p.sale_price) END) AS price,
+                       COALESCE(sku.sale_price, p.sale_price) AS sale_price,
+                       COALESCE(sku.stock, p.stock) AS stock, ci.quantity AS count,
                        COALESCE(ci.price_override,
-                           CASE WHEN ml.code <> 'NORMAL' AND p.member_price IS NOT NULL
-                                THEN p.member_price ELSE p.sale_price END) * ci.quantity AS line_amount
+                           CASE WHEN ml.code <> 'NORMAL' AND COALESCE(sku.member_price, p.member_price) IS NOT NULL
+                                THEN COALESCE(sku.member_price, p.member_price)
+                                ELSE COALESCE(sku.sale_price, p.sale_price) END) * ci.quantity AS line_amount
                 FROM cart_items ci JOIN products p ON p.id = ci.product_id
+                LEFT JOIN product_skus sku ON sku.id = ci.sku_id
                 JOIN users u ON u.id = ci.user_id JOIN member_levels ml ON ml.id = u.member_level_id
                 WHERE ci.user_id = :userId AND ci.selected = TRUE AND p.status = 'ON_SALE'
+                  AND (ci.sku_id IS NULL OR sku.enabled = TRUE)
                 ORDER BY ci.id
                 """ + lock).param("userId", userId).query(CheckoutItem.class).list();
         if (items.isEmpty()) {
@@ -352,11 +370,19 @@ public class OrderService {
                 UPDATE shop_orders SET status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP,
                     cancel_reason = :reason, updated_at = CURRENT_TIMESTAMP WHERE id = :id
                 """).param("reason", reason).param("id", order.id()).update();
-        List<RestoreItem> items = jdbc.sql("SELECT product_id, quantity FROM order_items WHERE order_id = :orderId")
+        List<RestoreItem> items = jdbc.sql("""
+                SELECT product_id, sku_id, quantity FROM order_items WHERE order_id = :orderId
+                """)
                 .param("orderId", order.id()).query(RestoreItem.class).list();
         for (RestoreItem item : items) {
-            jdbc.sql("UPDATE products SET stock = stock + :quantity, version = version + 1 WHERE id = :productId")
-                    .param("quantity", item.quantity()).param("productId", item.productId()).update();
+            if (item.skuId() != null) {
+                jdbc.sql("UPDATE product_skus SET stock = stock + :quantity WHERE id = :skuId")
+                        .param("quantity", item.quantity()).param("skuId", item.skuId()).update();
+                syncProductStock(item.productId());
+            } else {
+                jdbc.sql("UPDATE products SET stock = stock + :quantity, version = version + 1 WHERE id = :productId")
+                        .param("quantity", item.quantity()).param("productId", item.productId()).update();
+            }
         }
         jdbc.sql("""
                 UPDATE user_coupons SET status = 'AVAILABLE', order_id = NULL, used_at = NULL
@@ -416,6 +442,15 @@ public class OrderService {
                 .param("balance", balance).param("type", type).param("remark", remark).update();
     }
 
+    private void syncProductStock(long productId) {
+        jdbc.sql("""
+                UPDATE products SET stock = (
+                    SELECT COALESCE(SUM(stock), 0) FROM product_skus
+                    WHERE product_id = :productId AND enabled = TRUE
+                ), version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = :productId
+                """).param("productId", productId).update();
+    }
+
     private String nextOrderNo() {
         return "XF" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
                 + String.format("%04d", ThreadLocalRandom.current().nextInt(10000));
@@ -461,7 +496,8 @@ public class OrderService {
         }
     }
 
-    public record CheckoutItem(long productId, String id, String name, String spec, String image,
+    public record CheckoutItem(long productId, Long skuId, String skuCode, String id,
+                               String name, String spec, String image,
                                BigDecimal price, BigDecimal salePrice, int stock, int count,
                                BigDecimal lineAmount) {
     }
@@ -498,7 +534,7 @@ public class OrderService {
     private record OrderIdentity(long id, String orderNo, long userId, String status, BigDecimal payAmount) {
     }
 
-    private record RestoreItem(long productId, int quantity) {
+    private record RestoreItem(long productId, Long skuId, int quantity) {
     }
 
     private record LowStockProduct(String productCode, String name, int stock) {

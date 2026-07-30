@@ -85,7 +85,110 @@ public class AdminService {
                     .param("sortOrder", command.sortOrder()).param("code", code).update();
             audit(adminId, "UPDATE_PRODUCT", "PRODUCT", code, command);
         }
+        ensureDefaultSku(code, command);
         return products("ALL").stream().filter(item -> item.productCode().equals(code)).findFirst().orElseThrow();
+    }
+
+    public List<AdminSku> productSkus(String productCode) {
+        return jdbc.sql("""
+                SELECT sku_code, spec_name, original_price, sale_price, member_price,
+                       stock, enabled, sort_order
+                FROM product_skus WHERE product_id = (
+                    SELECT id FROM products WHERE product_code = :code
+                ) ORDER BY sort_order, id
+                """).param("code", productCode).query(AdminSku.class).list();
+    }
+
+    @Transactional
+    public List<AdminSku> saveProductSkus(long adminId, String productCode, List<SkuCommand> commands) {
+        if (commands == null || commands.isEmpty()) {
+            throw BusinessException.badRequest("EMPTY_SKUS", "商品至少需要一个规格");
+        }
+        Long productId = jdbc.sql("SELECT id FROM products WHERE product_code = :code FOR UPDATE")
+                .param("code", productCode).query(Long.class).optional()
+                .orElseThrow(() -> BusinessException.notFound("PRODUCT_NOT_FOUND", "商品不存在"));
+        jdbc.sql("UPDATE product_skus SET enabled = FALSE WHERE product_id = :productId")
+                .param("productId", productId).update();
+        int sort = 0;
+        for (SkuCommand command : commands) {
+            if (command.salePrice().signum() < 0 || command.originalPrice().compareTo(command.salePrice()) < 0
+                    || command.stock() < 0) {
+                throw BusinessException.badRequest("INVALID_SKU", "规格价格或库存不正确");
+            }
+            String skuCode = command.skuCode() == null || command.skuCode().isBlank()
+                    ? productCode + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase()
+                    : command.skuCode();
+            int updated = jdbc.sql("""
+                    UPDATE product_skus SET spec_name = :spec, original_price = :original,
+                        sale_price = :sale, member_price = :member, stock = :stock,
+                        enabled = TRUE, sort_order = :sort, updated_at = CURRENT_TIMESTAMP
+                    WHERE product_id = :productId AND sku_code = :skuCode
+                    """).param("spec", command.specName()).param("original", command.originalPrice())
+                    .param("sale", command.salePrice()).param("member", command.memberPrice())
+                    .param("stock", command.stock()).param("sort", sort++)
+                    .param("productId", productId).param("skuCode", skuCode).update();
+            if (updated == 0) {
+                jdbc.sql("""
+                        INSERT INTO product_skus(product_id, sku_code, spec_name, original_price,
+                            sale_price, member_price, stock, enabled, sort_order)
+                        VALUES (:productId, :skuCode, :spec, :original, :sale, :member, :stock, TRUE, :sort)
+                        """).param("productId", productId).param("skuCode", skuCode)
+                        .param("spec", command.specName()).param("original", command.originalPrice())
+                        .param("sale", command.salePrice()).param("member", command.memberPrice())
+                        .param("stock", command.stock()).param("sort", sort - 1).update();
+            }
+        }
+        AdminSku first = productSkus(productCode).stream().filter(AdminSku::enabled).findFirst().orElseThrow();
+        jdbc.sql("""
+                UPDATE products SET spec = :spec, original_price = :original, sale_price = :sale,
+                    member_price = :member, stock = (
+                        SELECT COALESCE(SUM(stock), 0) FROM product_skus
+                        WHERE product_id = :productId AND enabled = TRUE
+                    ), updated_at = CURRENT_TIMESTAMP WHERE id = :productId
+                """).param("spec", first.specName()).param("original", first.originalPrice())
+                .param("sale", first.salePrice()).param("member", first.memberPrice())
+                .param("productId", productId).update();
+        audit(adminId, "UPDATE_PRODUCT_SKUS", "PRODUCT", productCode, commands);
+        return productSkus(productCode);
+    }
+
+    private void ensureDefaultSku(String productCode, ProductCommand command) {
+        Long productId = jdbc.sql("SELECT id FROM products WHERE product_code = :code")
+                .param("code", productCode).query(Long.class).single();
+        long skuCount = jdbc.sql("SELECT COUNT(*) FROM product_skus WHERE product_id = :productId AND enabled = TRUE")
+                .param("productId", productId).query(Long.class).single();
+        int defaultStock = skuCount > 1
+                ? jdbc.sql("""
+                        SELECT stock FROM product_skus WHERE product_id = :productId
+                          AND sku_code = :skuCode
+                        """).param("productId", productId).param("skuCode", productCode + "-DEFAULT")
+                        .query(Integer.class).optional().orElse(command.stock())
+                : command.stock();
+        int updated = jdbc.sql("""
+                UPDATE product_skus SET spec_name = :spec, original_price = :original,
+                    sale_price = :sale, member_price = :member, stock = :stock,
+                    enabled = TRUE, updated_at = CURRENT_TIMESTAMP
+                WHERE product_id = :productId AND sku_code = :skuCode
+                """).param("spec", command.spec()).param("original", command.originalPrice())
+                .param("sale", command.salePrice()).param("member", command.memberPrice())
+                .param("stock", defaultStock).param("productId", productId)
+                .param("skuCode", productCode + "-DEFAULT").update();
+        if (updated == 0) {
+            jdbc.sql("""
+                    INSERT INTO product_skus(product_id, sku_code, spec_name, original_price,
+                        sale_price, member_price, stock, enabled, sort_order)
+                    VALUES (:productId, :skuCode, :spec, :original, :sale, :member, :stock, TRUE, 0)
+                    """).param("productId", productId).param("skuCode", productCode + "-DEFAULT")
+                    .param("spec", command.spec()).param("original", command.originalPrice())
+                    .param("sale", command.salePrice()).param("member", command.memberPrice())
+                    .param("stock", defaultStock).update();
+        }
+        jdbc.sql("""
+                UPDATE products SET stock = (
+                    SELECT COALESCE(SUM(stock), 0) FROM product_skus
+                    WHERE product_id = :productId AND enabled = TRUE
+                ) WHERE id = :productId
+                """).param("productId", productId).update();
     }
 
     public List<AdminOrder> orders(String status, int page, int size) {
@@ -240,6 +343,42 @@ public class AdminService {
     }
 
     @Transactional
+    public AdminCoupon updateCoupon(long adminId, String couponCode, CouponCommand command) {
+        if (!command.endsAt().isAfter(command.startsAt())) {
+            throw BusinessException.badRequest("INVALID_COUPON_PERIOD", "优惠券结束时间必须晚于开始时间");
+        }
+        int claimed = jdbc.sql("SELECT claimed_count FROM coupons WHERE code = :code FOR UPDATE")
+                .param("code", couponCode).query(Integer.class).optional()
+                .orElseThrow(() -> BusinessException.notFound("COUPON_NOT_FOUND", "优惠券不存在"));
+        if (command.totalStock() < claimed) {
+            throw BusinessException.badRequest("INVALID_COUPON_STOCK", "发行数量不能小于已发放数量");
+        }
+        jdbc.sql("""
+                UPDATE coupons SET name = :name, amount = :amount, minimum_amount = :minimumAmount,
+                    total_stock = :totalStock, starts_at = :startsAt, ends_at = :endsAt,
+                    enabled = :enabled WHERE code = :code
+                """).param("name", command.name().trim()).param("amount", command.amount())
+                .param("minimumAmount", command.minimumAmount()).param("totalStock", command.totalStock())
+                .param("startsAt", command.startsAt()).param("endsAt", command.endsAt())
+                .param("enabled", command.enabled()).param("code", couponCode).update();
+        audit(adminId, "UPDATE_COUPON", "COUPON", couponCode, command);
+        return coupons().stream().filter(item -> item.code().equals(couponCode)).findFirst().orElseThrow();
+    }
+
+    @Transactional
+    public void voidCoupon(long adminId, String couponCode) {
+        int updated = jdbc.sql("UPDATE coupons SET enabled = FALSE WHERE code = :code")
+                .param("code", couponCode).update();
+        if (updated == 0) throw BusinessException.notFound("COUPON_NOT_FOUND", "优惠券不存在");
+        jdbc.sql("""
+                UPDATE user_coupons SET status = 'VOIDED'
+                WHERE coupon_id = (SELECT id FROM coupons WHERE code = :code)
+                  AND status IN ('AVAILABLE','NOT_STARTED')
+                """).param("code", couponCode).update();
+        audit(adminId, "VOID_COUPON", "COUPON", couponCode, "管理员作废");
+    }
+
+    @Transactional
     public CouponIssueResult issueCoupon(long adminId, String couponCode, String mobile) {
         String normalizedMobile = mobile == null ? "" : mobile.trim();
         String normalizedCode = couponCode == null ? "" : couponCode.trim().toUpperCase();
@@ -282,7 +421,121 @@ public class AdminService {
                 userCouponId, coupon.code(), coupon.name(), user.id(), user.nickname(),
                 user.mobile(), issuedStatus, LocalDateTime.now());
         audit(adminId, "ISSUE_COUPON", "USER_COUPON", userCouponId.toString(), result);
+        Long batchId = createIssueBatch(adminId, coupon.id(), 1);
+        jdbc.sql("""
+                INSERT INTO coupon_issue_records(batch_id, coupon_id, user_id, user_coupon_id, mobile, status)
+                VALUES (:batchId, :couponId, :userId, :userCouponId, :mobile, 'SUCCESS')
+                """).param("batchId", batchId).param("couponId", coupon.id()).param("userId", user.id())
+                .param("userCouponId", userCouponId).param("mobile", user.mobile()).update();
+        completeIssueBatch(batchId, 1, 0);
         return result;
+    }
+
+    @Transactional
+    public CouponBatchResult batchIssueCoupon(long adminId, String couponCode, List<String> mobiles) {
+        List<String> normalized = mobiles == null ? List.of() : mobiles.stream()
+                .filter(value -> value != null && !value.isBlank()).map(String::trim).distinct().limit(500).toList();
+        if (normalized.isEmpty()) {
+            throw BusinessException.badRequest("EMPTY_MOBILE_LIST", "请至少填写一个手机号");
+        }
+        CouponIssueDefinition coupon = jdbc.sql("""
+                SELECT id, code, name, total_stock, claimed_count, per_user_limit,
+                       starts_at, ends_at, enabled
+                FROM coupons WHERE code = :code FOR UPDATE
+                """).param("code", couponCode).query(CouponIssueDefinition.class).optional()
+                .orElseThrow(() -> BusinessException.notFound("COUPON_NOT_FOUND", "优惠券不存在"));
+        if (!coupon.enabled() || !coupon.endsAt().isAfter(LocalDateTime.now())) {
+            throw BusinessException.conflict("COUPON_NOT_ISSUABLE", "优惠券已停用或已过期，不能继续发放");
+        }
+        Long batchId = createIssueBatch(adminId, coupon.id(), normalized.size());
+        String batchNo = jdbc.sql("SELECT batch_no FROM coupon_issue_batches WHERE id = :id")
+                .param("id", batchId).query(String.class).single();
+        int success = 0;
+        int failed = 0;
+        for (String mobile : normalized) {
+            try {
+                CouponIssueTarget issued = issueOne(coupon, mobile);
+                jdbc.sql("""
+                        INSERT INTO coupon_issue_records(batch_id, coupon_id, user_id, user_coupon_id, mobile, status)
+                        VALUES (:batchId, :couponId, :userId, :userCouponId, :mobile, 'SUCCESS')
+                        """).param("batchId", batchId).param("couponId", coupon.id())
+                        .param("userId", issued.userId()).param("userCouponId", issued.userCouponId())
+                        .param("mobile", mobile).update();
+                success++;
+            } catch (BusinessException ex) {
+                jdbc.sql("""
+                        INSERT INTO coupon_issue_records(batch_id, coupon_id, mobile, status, failure_reason)
+                        VALUES (:batchId, :couponId, :mobile, 'FAILED', :reason)
+                        """).param("batchId", batchId).param("couponId", coupon.id())
+                        .param("mobile", mobile).param("reason", ex.getMessage()).update();
+                failed++;
+            }
+        }
+        completeIssueBatch(batchId, success, failed);
+        CouponBatchResult result = new CouponBatchResult(batchNo, normalized.size(), success, failed);
+        audit(adminId, "BATCH_ISSUE_COUPON", "COUPON", couponCode, result);
+        return result;
+    }
+
+    public List<CouponIssueRecordView> couponIssueRecords(String couponCode) {
+        String condition = couponCode == null || couponCode.isBlank() ? "" : " WHERE c.code = :code";
+        JdbcClient.StatementSpec query = jdbc.sql("""
+                SELECT b.batch_no, c.code AS coupon_code, c.name AS coupon_name, r.mobile,
+                       u.nickname, r.status, r.failure_reason, r.created_at
+                FROM coupon_issue_records r
+                JOIN coupon_issue_batches b ON b.id = r.batch_id
+                JOIN coupons c ON c.id = r.coupon_id
+                LEFT JOIN users u ON u.id = r.user_id
+                """ + condition + " ORDER BY r.id DESC LIMIT 1000");
+        if (!condition.isBlank()) query = query.param("code", couponCode);
+        return query.query(CouponIssueRecordView.class).list();
+    }
+
+    private CouponIssueTarget issueOne(CouponIssueDefinition coupon, String mobile) {
+        if (!mobile.matches("^1[3-9]\\d{9}$")) {
+            throw BusinessException.badRequest("INVALID_MOBILE", "手机号格式不正确");
+        }
+        int claimed = jdbc.sql("SELECT claimed_count FROM coupons WHERE id = :id")
+                .param("id", coupon.id()).query(Integer.class).single();
+        if (claimed >= coupon.totalStock()) throw BusinessException.conflict("COUPON_OUT_OF_STOCK", "优惠券库存已发完");
+        CouponUser user = jdbc.sql("""
+                SELECT id, nickname, mobile FROM users
+                WHERE mobile = :mobile AND role = 'USER' AND status = 'ACTIVE'
+                """).param("mobile", mobile).query(CouponUser.class).optional()
+                .orElseThrow(() -> BusinessException.notFound("USER_MOBILE_NOT_FOUND", "手机号未绑定可用用户"));
+        long issuedCount = jdbc.sql("""
+                SELECT COUNT(*) FROM user_coupons WHERE user_id = :userId AND coupon_id = :couponId
+                """).param("userId", user.id()).param("couponId", coupon.id()).query(Long.class).single();
+        if (issuedCount >= coupon.perUserLimit()) {
+            throw BusinessException.conflict("COUPON_LIMIT_REACHED", "该用户已拥有这张优惠券");
+        }
+        jdbc.sql("INSERT INTO user_coupons(user_id, coupon_id) VALUES (:userId, :couponId)")
+                .param("userId", user.id()).param("couponId", coupon.id()).update();
+        jdbc.sql("UPDATE coupons SET claimed_count = claimed_count + 1 WHERE id = :id")
+                .param("id", coupon.id()).update();
+        Long userCouponId = jdbc.sql("""
+                SELECT id FROM user_coupons WHERE user_id = :userId AND coupon_id = :couponId
+                ORDER BY id DESC LIMIT 1
+                """).param("userId", user.id()).param("couponId", coupon.id()).query(Long.class).single();
+        return new CouponIssueTarget(user.id(), userCouponId);
+    }
+
+    private Long createIssueBatch(long adminId, long couponId, int total) {
+        String batchNo = "CB" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase();
+        jdbc.sql("""
+                INSERT INTO coupon_issue_batches(batch_no, coupon_id, admin_user_id, total_count)
+                VALUES (:batchNo, :couponId, :adminId, :total)
+                """).param("batchNo", batchNo).param("couponId", couponId)
+                .param("adminId", adminId).param("total", total).update();
+        return jdbc.sql("SELECT id FROM coupon_issue_batches WHERE batch_no = :batchNo")
+                .param("batchNo", batchNo).query(Long.class).single();
+    }
+
+    private void completeIssueBatch(long batchId, int success, int failed) {
+        jdbc.sql("""
+                UPDATE coupon_issue_batches SET success_count = :success, failed_count = :failed,
+                    completed_at = CURRENT_TIMESTAMP WHERE id = :id
+                """).param("success", success).param("failed", failed).param("id", batchId).update();
     }
 
     @Transactional
@@ -312,7 +565,9 @@ public class AdminService {
         JdbcClient.StatementSpec query = jdbc.sql("""
                 SELECT a.after_sale_no, o.order_no, u.nickname, a.reason, a.description,
                        a.status, a.refund_amount, a.refund_status, a.refunded_amount,
-                       a.refund_error, a.merchant_reply, a.created_at
+                       a.refund_error, a.merchant_reply,
+                       (SELECT COUNT(*) FROM after_sale_images ai WHERE ai.after_sale_id = a.id) AS image_count,
+                       a.created_at
                 FROM after_sales a JOIN shop_orders o ON o.id = a.order_id JOIN users u ON u.id = a.user_id
                 """ + condition + " ORDER BY a.id DESC");
         if (!condition.isBlank()) {
@@ -555,6 +810,15 @@ public class AdminService {
                                String badge, String status, int sortOrder, LocalDateTime updatedAt) {
     }
 
+    public record SkuCommand(String skuCode, String specName, BigDecimal originalPrice,
+                             BigDecimal salePrice, BigDecimal memberPrice, int stock) {
+    }
+
+    public record AdminSku(String skuCode, String specName, BigDecimal originalPrice,
+                           BigDecimal salePrice, BigDecimal memberPrice, int stock,
+                           boolean enabled, int sortOrder) {
+    }
+
     public record AdminOrder(String orderNo, String status, String nickname, String mobile,
                              BigDecimal payAmount, BigDecimal deliveryFee, String receiverName,
                              String receiverMobile, String receiverAddress, LocalDateTime createdAt,
@@ -615,13 +879,24 @@ public class AdminService {
                                     LocalDateTime issuedAt) {
     }
 
+    private record CouponIssueTarget(long userId, long userCouponId) {
+    }
+
+    public record CouponBatchResult(String batchNo, int totalCount, int successCount, int failedCount) {
+    }
+
+    public record CouponIssueRecordView(String batchNo, String couponCode, String couponName,
+                                        String mobile, String nickname, String status,
+                                        String failureReason, LocalDateTime createdAt) {
+    }
+
     public record RefundCommand(BigDecimal amount, String reason) {
     }
 
     public record AfterSaleAdminView(String afterSaleNo, String orderNo, String nickname, String reason,
                                      String description, String status, BigDecimal refundAmount,
                                      String refundStatus, BigDecimal refundedAmount, String refundError,
-                                     String merchantReply, LocalDateTime createdAt) {
+                                     String merchantReply, long imageCount, LocalDateTime createdAt) {
     }
 
     private record AfterSaleProcessRow(long id, String orderNo, String status, BigDecimal refundAmount) {

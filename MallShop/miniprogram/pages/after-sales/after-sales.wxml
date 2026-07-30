@@ -1,5 +1,5 @@
 <view class="asset-page">
-  <view class="asset-card after" wx:for="{{items}}" wx:key="afterSaleNo">
+  <view class="asset-card after" wx:for="{{items}}" wx:key="afterSaleNo" data-no="{{item.afterSaleNo}}" bindtap="detail">
     <view class="between"><text class="title">{{item.afterSaleNo}}</text><text class="state">{{item.refundStatus==='SUCCEEDED'?'退款成功':item.refundStatus==='FAILED'?'退款失败待重试':item.status==='REJECTED'?'已拒绝':'处理中'}}</text></view>
     <text class="muted">订单 {{item.orderNo}}</text><text>{{item.reason}}</text>
     <text class="money">申请退款 ¥{{item.refundAmount}} · 已退 ¥{{item.refundedAmount}}</text>

@@ -88,7 +88,7 @@ Page({
     }
   },
   retryProducts() { this.loadProducts() },
-  showProduct(e) { this.setData({ selectedProduct: this.data.products.find(item => item.id === e.currentTarget.dataset.id) }) },
+  showProduct(e) { wx.navigateTo({ url: `/pages/product-detail/product-detail?id=${e.currentTarget.dataset.id}` }) },
   closeProduct() { this.setData({ selectedProduct: null }) },
   async addCart(e) {
     try {

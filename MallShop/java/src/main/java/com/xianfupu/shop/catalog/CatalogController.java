@@ -35,7 +35,7 @@ public class CatalogController {
     }
 
     @GetMapping("/products/{productCode}")
-    CatalogService.ProductView product(@PathVariable String productCode) {
-        return catalogService.product(productCode);
+    CatalogService.ProductDetail product(@PathVariable String productCode) {
+        return catalogService.productDetail(productCode);
     }
 }

@@ -3,6 +3,7 @@ package com.xianfupu.shop.admin;
 import com.xianfupu.shop.order.OrderService;
 import com.xianfupu.shop.payment.PaymentService;
 import com.xianfupu.shop.security.CurrentUser;
+import com.xianfupu.shop.user.AfterSaleService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
@@ -35,10 +36,13 @@ import java.util.List;
 public class AdminController {
     private final AdminService service;
     private final AdminOrderNotificationService orderNotifications;
+    private final AfterSaleService afterSaleService;
 
-    public AdminController(AdminService service, AdminOrderNotificationService orderNotifications) {
+    public AdminController(AdminService service, AdminOrderNotificationService orderNotifications,
+                           AfterSaleService afterSaleService) {
         this.service = service;
         this.orderNotifications = orderNotifications;
+        this.afterSaleService = afterSaleService;
     }
 
     @GetMapping("/dashboard")
@@ -61,6 +65,18 @@ public class AdminController {
     AdminService.AdminProduct updateProduct(@PathVariable String productCode,
                                             @Valid @RequestBody ProductRequest request) {
         return service.saveProduct(CurrentUser.id(), productCode, request.toCommand());
+    }
+
+    @GetMapping("/products/{productCode}/skus")
+    List<AdminService.AdminSku> productSkus(@PathVariable String productCode) {
+        return service.productSkus(productCode);
+    }
+
+    @PutMapping("/products/{productCode}/skus")
+    List<AdminService.AdminSku> saveProductSkus(@PathVariable String productCode,
+                                                @Valid @RequestBody ProductSkusRequest request) {
+        return service.saveProductSkus(CurrentUser.id(), productCode,
+                request.skus().stream().map(SkuRequest::toCommand).toList());
     }
 
     @GetMapping("/orders")
@@ -146,6 +162,18 @@ public class AdminController {
         return service.createCoupon(CurrentUser.id(), request.toCommand());
     }
 
+    @PutMapping("/coupons/{couponCode}")
+    AdminService.AdminCoupon updateCoupon(@PathVariable String couponCode,
+                                          @Valid @RequestBody CouponRequest request) {
+        return service.updateCoupon(CurrentUser.id(), couponCode, request.toCommand());
+    }
+
+    @DeleteMapping("/coupons/{couponCode}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void voidCoupon(@PathVariable String couponCode) {
+        service.voidCoupon(CurrentUser.id(), couponCode);
+    }
+
     @PostMapping("/coupons/{couponCode}/issues")
     @ResponseStatus(HttpStatus.CREATED)
     AdminService.CouponIssueResult issueCoupon(@PathVariable String couponCode,
@@ -153,9 +181,26 @@ public class AdminController {
         return service.issueCoupon(CurrentUser.id(), couponCode, request.mobile());
     }
 
+    @PostMapping("/coupons/{couponCode}/batch-issues")
+    AdminService.CouponBatchResult batchIssueCoupon(@PathVariable String couponCode,
+                                                    @Valid @RequestBody CouponBatchIssueRequest request) {
+        return service.batchIssueCoupon(CurrentUser.id(), couponCode, request.mobiles());
+    }
+
+    @GetMapping("/coupon-issue-records")
+    List<AdminService.CouponIssueRecordView> couponIssueRecords(
+            @RequestParam(required = false) String couponCode) {
+        return service.couponIssueRecords(couponCode);
+    }
+
     @GetMapping("/after-sales")
     List<AdminService.AfterSaleAdminView> afterSales(@RequestParam(defaultValue = "ALL") String status) {
         return service.afterSales(status);
+    }
+
+    @GetMapping("/after-sales/{afterSaleNo}")
+    AfterSaleService.AfterSaleView afterSale(@PathVariable String afterSaleNo) {
+        return afterSaleService.adminGet(afterSaleNo);
     }
 
     @PatchMapping("/after-sales/{afterSaleNo}")
@@ -225,6 +270,19 @@ public class AdminController {
     public record StatusRequest(@NotBlank String status) {
     }
 
+    public record ProductSkusRequest(@NotNull @Size(min = 1, max = 30) List<@Valid SkuRequest> skus) {
+    }
+
+    public record SkuRequest(String skuCode, @NotBlank @Size(max = 100) String specName,
+                             @NotNull @DecimalMin("0") BigDecimal originalPrice,
+                             @NotNull @DecimalMin("0") BigDecimal salePrice,
+                             @DecimalMin("0") BigDecimal memberPrice, @Min(0) int stock) {
+        AdminService.SkuCommand toCommand() {
+            return new AdminService.SkuCommand(skuCode, specName, originalPrice, salePrice,
+                    memberPrice, stock);
+        }
+    }
+
     public record RefundRequest(@DecimalMin("0.01") BigDecimal amount,
                                 @NotBlank @Size(max = 255) String reason) {
     }
@@ -283,5 +341,8 @@ public class AdminController {
     public record CouponIssueRequest(
             @NotBlank @Pattern(regexp = "^1[3-9]\\d{9}$", message = "请输入正确的 11 位手机号")
             String mobile) {
+    }
+
+    public record CouponBatchIssueRequest(@NotNull @Size(min = 1, max = 500) List<String> mobiles) {
     }
 }

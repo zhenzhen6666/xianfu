@@ -32,7 +32,8 @@ public class AfterSaleController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     AfterSaleService.AfterSaleView create(@Valid @RequestBody AfterSaleRequest request) {
-        return service.create(CurrentUser.id(), request.orderNo(), request.reason(), request.description());
+        return service.create(CurrentUser.id(), request.orderNo(), request.reason(),
+                request.description(), request.imageUrls());
     }
 
     @GetMapping("/{afterSaleNo}")
@@ -41,6 +42,7 @@ public class AfterSaleController {
     }
 
     public record AfterSaleRequest(@NotBlank String orderNo, @NotBlank @Size(max = 255) String reason,
-                                   @Size(max = 1000) String description) {
+                                   @Size(max = 1000) String description,
+                                   @Size(max = 6) List<@Size(max = 500) String> imageUrls) {
     }
 }

@@ -5,7 +5,7 @@ import { ElMessage } from 'element-plus'
 import { adminApi } from '../api/admin'
 import PageToolbar from '../components/PageToolbar.vue'
 import StatusTag from '../components/StatusTag.vue'
-import type { Category, Product, ProductPayload } from '../types/api'
+import type { Category, Product, ProductPayload, ProductSku } from '../types/api'
 import { dateTime, money } from '../utils/format'
 
 const loading = ref(false)
@@ -16,6 +16,10 @@ const status = ref('ALL')
 const keyword = ref('')
 const products = ref<Product[]>([])
 const categories = ref<Category[]>([])
+const skuOpen = ref(false)
+const skuSaving = ref(false)
+const skuProduct = ref<Product | null>(null)
+const skus = ref<ProductSku[]>([])
 
 const blank = (): ProductPayload => ({
   categoryCode: '', name: '', subtitle: '', description: '', spec: '', imageUrl: '',
@@ -77,6 +81,29 @@ async function toggle(row: Product) {
   await load()
 }
 
+async function openSkus(row: Product) {
+  skuProduct.value = row
+  skus.value = (await adminApi.productSkus(row.productCode)).filter(item => item.enabled !== false)
+    .map(item => ({ ...item, originalPrice: Number(item.originalPrice), salePrice: Number(item.salePrice), memberPrice: Number(item.memberPrice || 0), stock: Number(item.stock) }))
+  skuOpen.value = true
+}
+function addSku() {
+  const row = skuProduct.value
+  skus.value.push({ specName: '', originalPrice: Number(row?.originalPrice || 0), salePrice: Number(row?.salePrice || 0), memberPrice: Number(row?.memberPrice || 0), stock: 0 })
+}
+function removeSku(index: number) {
+  if (skus.value.length <= 1) return ElMessage.warning('商品至少需要一个规格')
+  skus.value.splice(index, 1)
+}
+async function saveSkus() {
+  if (!skuProduct.value || skus.value.some(item => !item.specName.trim() || item.salePrice < 0 || item.originalPrice < item.salePrice || item.stock < 0)) return ElMessage.warning('请检查规格名称、价格和库存')
+  skuSaving.value = true
+  try {
+    await adminApi.updateProductSkus(skuProduct.value.productCode, skus.value)
+    ElMessage.success('商品规格已更新'); skuOpen.value = false; await load()
+  } finally { skuSaving.value = false }
+}
+
 onMounted(load)
 </script>
 
@@ -100,7 +127,7 @@ onMounted(load)
         <el-table-column label="库存 / 销量" width="140"><template #default="{ row }"><div class="two-line"><strong :class="{ 'text-danger': row.stock < 30 }">库存 {{ row.stock }}</strong><small>销量 {{ row.sales }}</small></div></template></el-table-column>
         <el-table-column label="状态" width="105"><template #default="{ row }"><StatusTag :status="row.status" /></template></el-table-column>
         <el-table-column label="更新时间" width="165"><template #default="{ row }">{{ dateTime(row.updatedAt) }}</template></el-table-column>
-        <el-table-column label="操作" width="160" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openEdit(row)">编辑</el-button><el-button link :type="row.status === 'ON_SALE' ? 'danger' : 'success'" @click="toggle(row)">{{ row.status === 'ON_SALE' ? '下架' : '上架' }}</el-button></template></el-table-column>
+        <el-table-column label="操作" width="215" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openEdit(row)">编辑</el-button><el-button link type="success" @click="openSkus(row)">多规格</el-button><el-button link :type="row.status === 'ON_SALE' ? 'danger' : 'success'" @click="toggle(row)">{{ row.status === 'ON_SALE' ? '下架' : '上架' }}</el-button></template></el-table-column>
       </el-table>
     </article>
 
@@ -121,6 +148,19 @@ onMounted(load)
         <el-form-item label="商品描述" class="span-2"><el-input v-model="form.description" type="textarea" :rows="3" /></el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogOpen = false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存商品</el-button></template>
+    </el-dialog>
+    <el-dialog v-model="skuOpen" :title="`${skuProduct?.name || ''} · 多规格设置`" width="900px">
+      <div class="dialog-notice">每个规格可独立设置售价、会员价和库存。已被订单引用的旧规格会保留记录但停止展示。</div>
+      <el-table :data="skus" border>
+        <el-table-column label="规格名称" min-width="170"><template #default="{row}"><el-input v-model="row.specName" placeholder="例：500g/盒"/></template></el-table-column>
+        <el-table-column label="原价" width="145"><template #default="{row}"><el-input-number v-model="row.originalPrice" :min="0" :precision="2" controls-position="right"/></template></el-table-column>
+        <el-table-column label="售价" width="145"><template #default="{row}"><el-input-number v-model="row.salePrice" :min="0" :precision="2" controls-position="right"/></template></el-table-column>
+        <el-table-column label="会员价" width="145"><template #default="{row}"><el-input-number v-model="row.memberPrice" :min="0" :precision="2" controls-position="right"/></template></el-table-column>
+        <el-table-column label="库存" width="130"><template #default="{row}"><el-input-number v-model="row.stock" :min="0" controls-position="right"/></template></el-table-column>
+        <el-table-column label="操作" width="75"><template #default="{$index}"><el-button link type="danger" @click="removeSku($index)">删除</el-button></template></el-table-column>
+      </el-table>
+      <el-button style="margin-top:14px" :icon="Plus" @click="addSku">添加规格</el-button>
+      <template #footer><el-button @click="skuOpen=false">取消</el-button><el-button type="primary" :loading="skuSaving" @click="saveSkus">保存规格</el-button></template>
     </el-dialog>
   </div>
 </template>

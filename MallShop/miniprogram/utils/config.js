@@ -20,6 +20,11 @@ function setApiBaseUrl(value) {
   return normalized
 }
 
+function resolveApiFileUrl(value) {
+  if (!value || /^https?:\/\//.test(value)) return value || ''
+  return `${getApiBaseUrl().replace(/\/api$/, '')}${value}`
+}
+
 module.exports = {
   API_BASE_URL_KEY,
   DEFAULT_API_BASE_URL,
@@ -27,5 +32,6 @@ module.exports = {
   REFRESH_TOKEN_KEY,
   USER_KEY,
   getApiBaseUrl,
-  setApiBaseUrl
+  setApiBaseUrl,
+  resolveApiFileUrl
 }

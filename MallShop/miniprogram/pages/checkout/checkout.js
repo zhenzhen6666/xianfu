@@ -14,6 +14,15 @@ Page({
     this.setData({ idempotencyKey: `${Date.now()}-${Math.random().toString(36).slice(2)}` })
     this.loadCheckout()
   },
+  onShow() {
+    const selectedId = Number(wx.getStorageSync('xianfupu_checkout_address_id') || 0)
+    if (!selectedId || !this.data.address.id) return
+    wx.removeStorageSync('xianfupu_checkout_address_id')
+    api.addresses().then(items => {
+      const address = items.find(item => item.id === selectedId)
+      if (address) this.setData({ address }, () => this.refreshPreview())
+    })
+  },
 
   addressPayload(address) {
     return {
@@ -127,12 +136,7 @@ Page({
   },
   bindNote(e) { this.setData({ note: e.detail.value }) },
   noop() {},
-  openAddress() {
-    this.setData({
-      showAddress: true,
-      addressDraft: { name: this.data.address.name, phone: this.data.address.phone, detail: this.data.address.detail }
-    })
-  },
+  openAddress() { wx.navigateTo({ url: '/pages/addresses/addresses?select=1' }) },
   closeAddress() { this.setData({ showAddress: false }) },
   bindAddress(e) { this.setData({ [`addressDraft.${e.currentTarget.dataset.field}`]: e.detail.value }) },
   async saveAddress() {

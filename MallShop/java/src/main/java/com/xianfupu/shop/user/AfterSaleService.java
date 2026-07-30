@@ -20,6 +20,12 @@ public class AfterSaleService {
 
     @Transactional
     public AfterSaleView create(long userId, String orderNo, String reason, String description) {
+        return create(userId, orderNo, reason, description, List.of());
+    }
+
+    @Transactional
+    public AfterSaleView create(long userId, String orderNo, String reason, String description,
+                                List<String> imageUrls) {
         OrderForAfterSale order = jdbc.sql("""
                 SELECT id, pay_amount, status FROM shop_orders WHERE order_no = :orderNo AND user_id = :userId
                 """).param("orderNo", orderNo).param("userId", userId).query(OrderForAfterSale.class).optional()
@@ -42,6 +48,16 @@ public class AfterSaleService {
                 .param("reason", reason).param("description", description).param("amount", order.payAmount()).update();
         Long afterSaleId = jdbc.sql("SELECT id FROM after_sales WHERE after_sale_no = :no")
                 .param("no", no).query(Long.class).single();
+        List<String> safeImages = imageUrls == null ? List.of() : imageUrls.stream()
+                .filter(value -> value != null && value.startsWith("/api/files/"))
+                .distinct().limit(6).toList();
+        for (int index = 0; index < safeImages.size(); index++) {
+            jdbc.sql("""
+                    INSERT INTO after_sale_images(after_sale_id, image_url, sort_order)
+                    VALUES (:id, :url, :sortOrder)
+                    """).param("id", afterSaleId).param("url", safeImages.get(index))
+                    .param("sortOrder", index).update();
+        }
         jdbc.sql("""
                 INSERT INTO after_sale_status_history(after_sale_id, status, refund_status, message, operator_user_id)
                 VALUES (:id, 'PENDING', 'NOT_STARTED', '用户提交售后申请', :userId)
@@ -52,14 +68,21 @@ public class AfterSaleService {
     public List<AfterSaleView> list(long userId) {
         return jdbc.sql(afterSaleSql() + " WHERE a.user_id = :userId ORDER BY a.created_at DESC")
                 .param("userId", userId).query(AfterSaleRow.class).list().stream()
-                .map(row -> row.withHistory(history(row.id()))).toList();
+                .map(row -> row.withDetails(history(row.id()), images(row.id()))).toList();
     }
 
     public AfterSaleView get(long userId, String afterSaleNo) {
         AfterSaleRow row = jdbc.sql(afterSaleSql() + " WHERE a.user_id = :userId AND a.after_sale_no = :no")
                 .param("userId", userId).param("no", afterSaleNo).query(AfterSaleRow.class).optional()
                 .orElseThrow(() -> BusinessException.notFound("AFTER_SALE_NOT_FOUND", "售后申请不存在"));
-        return row.withHistory(history(row.id()));
+        return row.withDetails(history(row.id()), images(row.id()));
+    }
+
+    public AfterSaleView adminGet(String afterSaleNo) {
+        AfterSaleRow row = jdbc.sql(afterSaleSql() + " WHERE a.after_sale_no = :no")
+                .param("no", afterSaleNo).query(AfterSaleRow.class).optional()
+                .orElseThrow(() -> BusinessException.notFound("AFTER_SALE_NOT_FOUND", "售后申请不存在"));
+        return row.withDetails(history(row.id()), images(row.id()));
     }
 
     private List<AfterSaleHistoryView> history(long afterSaleId) {
@@ -67,6 +90,12 @@ public class AfterSaleService {
                 SELECT status, refund_status, message, created_at
                 FROM after_sale_status_history WHERE after_sale_id = :id ORDER BY id
                 """).param("id", afterSaleId).query(AfterSaleHistoryView.class).list();
+    }
+
+    private List<String> images(long afterSaleId) {
+        return jdbc.sql("""
+                SELECT image_url FROM after_sale_images WHERE after_sale_id = :id ORDER BY sort_order, id
+                """).param("id", afterSaleId).query(String.class).list();
     }
 
     private String afterSaleSql() {
@@ -87,9 +116,13 @@ public class AfterSaleService {
                                 String merchantReply, LocalDateTime processedAt, LocalDateTime refundedAt,
                                 LocalDateTime createdAt, LocalDateTime updatedAt) {
         AfterSaleView withHistory(List<AfterSaleHistoryView> history) {
+            return withDetails(history, List.of());
+        }
+
+        AfterSaleView withDetails(List<AfterSaleHistoryView> history, List<String> images) {
             return new AfterSaleView(afterSaleNo, orderNo, reason, description, status, refundAmount,
                     refundStatus, refundedAmount, refundError, merchantReply, processedAt,
-                    refundedAt, createdAt, updatedAt, history);
+                    refundedAt, createdAt, updatedAt, images, history);
         }
     }
 
@@ -98,6 +131,7 @@ public class AfterSaleService {
                                 BigDecimal refundedAmount, String refundError, String merchantReply,
                                 LocalDateTime processedAt, LocalDateTime refundedAt,
                                 LocalDateTime createdAt, LocalDateTime updatedAt,
+                                List<String> images,
                                 List<AfterSaleHistoryView> history) {
     }
 

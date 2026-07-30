@@ -71,6 +71,18 @@ public class CatalogService {
                 .orElseThrow(() -> BusinessException.notFound("PRODUCT_NOT_FOUND", "商品不存在或已下架"));
     }
 
+    public ProductDetail productDetail(String productCode) {
+        ProductView product = product(productCode);
+        List<SkuView> skus = jdbc.sql("""
+                SELECT sku_code, spec_name, original_price, sale_price, member_price, stock
+                FROM product_skus
+                WHERE product_id = (SELECT id FROM products WHERE product_code = :code)
+                  AND enabled = TRUE
+                ORDER BY sort_order, id
+                """).param("code", productCode).query(SkuView.class).list();
+        return new ProductDetail(product, skus);
+    }
+
     public DeliveryConfig deliveryConfig() {
         return jdbc.sql("""
                 SELECT free_threshold, base_fee, max_distance_km, promise_minutes, announcement
@@ -99,6 +111,13 @@ public class CatalogService {
     }
 
     public record ProductPage(List<ProductView> items, int page, int size, long total, long totalPages) {
+    }
+
+    public record SkuView(String skuCode, String specName, BigDecimal originalPrice,
+                          BigDecimal salePrice, BigDecimal memberPrice, int stock) {
+    }
+
+    public record ProductDetail(ProductView product, List<SkuView> skus) {
     }
 
     public record DeliveryConfig(BigDecimal freeThreshold, BigDecimal baseFee, BigDecimal maxDistanceKm,

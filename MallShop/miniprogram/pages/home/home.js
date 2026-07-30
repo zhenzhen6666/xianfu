@@ -96,6 +96,7 @@ Page({
   },
   goCategory() { wx.switchTab({ url: '/pages/category/category' }) },
   goCart() { wx.navigateTo({ url: '/pages/cart/cart' }) },
+  goProduct(e) { wx.navigateTo({ url: `/pages/product-detail/product-detail?id=${e.currentTarget.dataset.id}` }) },
   goActivity(e) { wx.navigateTo({ url: `/pages/activity/activity?type=${e.currentTarget.dataset.type}` }) },
   async addCart(e) {
     try {
