@@ -101,7 +101,7 @@
 - `GET /admin/dashboard`
 - `GET/POST/PUT /admin/products...`
 - `GET/PUT /admin/categories...`
-- `GET/POST/PUT /admin/home-modules...`
+- `GET/POST/PUT/DELETE /admin/home-modules...`：管理首页模块及快捷入口、活动卡片、配送提示
 - `GET/PUT /admin/activities...`
 - `GET /admin/orders`
 - `PATCH /admin/orders/{orderNo}/status`

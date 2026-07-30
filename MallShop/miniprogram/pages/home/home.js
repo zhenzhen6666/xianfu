@@ -1,6 +1,17 @@
 const api = require('../../utils/api')
 const adapters = require('../../utils/adapters')
 
+const DEFAULT_QUICKS = [
+  { icon: '¥0.01', name: '一分专享', theme: 'mint', type: 'penny' },
+  { icon: '券', name: '新人福利', theme: 'orange', type: 'new' },
+  { icon: '净', name: '绿捷净菜', theme: 'pink', type: 'clean' },
+  { icon: '砸', name: '欢乐金蛋', theme: 'yellow', type: 'egg' }
+]
+const DEFAULT_ZONES = [
+  { kicker: '省心搭配', title: '在家做饭', linkText: '去看看 →', image: '/assets/products/mushroom.jpg', theme: 'pink', type: 'clean' },
+  { kicker: '本周爆款', title: '9.9 特惠', linkText: '限时抢 →', image: '/assets/products/orange.jpg', theme: 'yellow', type: 'deal' }
+]
+
 Page({
   data: {
     loading: true,
@@ -9,17 +20,10 @@ Page({
     cartCount: 0,
     products: [],
     delivery: { freeThreshold: 30, baseFee: 3, maxDistanceKm: 3, promiseMinutes: 30, announcement: '城区 3 公里配送' },
+    showNotice: true,
     notice: { icon: '闪', primaryText: '城区 3 公里配送', secondaryText: '30 分钟送货上门' },
-    quicks: [
-      { icon: '¥0.01', name: '一分专享', theme: 'mint', type: 'penny' },
-      { icon: '券', name: '新人福利', theme: 'orange', type: 'new' },
-      { icon: '净', name: '绿捷净菜', theme: 'pink', type: 'clean' },
-      { icon: '砸', name: '欢乐金蛋', theme: 'yellow', type: 'egg' }
-    ],
-    zones: [
-      { kicker: '省心搭配', title: '在家做饭', linkText: '去看看 →', image: '/assets/products/mushroom.jpg', theme: 'pink', type: 'clean' },
-      { kicker: '本周爆款', title: '9.9 特惠', linkText: '限时抢 →', image: '/assets/products/orange.jpg', theme: 'yellow', type: 'deal' }
-    ]
+    quicks: DEFAULT_QUICKS,
+    zones: DEFAULT_ZONES
   },
 
   onLoad() {
@@ -46,6 +50,7 @@ Page({
       this.setData({
         products: (result.recommendedProducts || []).map(adapters.product),
         delivery,
+        showNotice: Boolean(announcement),
         notice: noticeContent ? {
           icon: noticeContent.icon || '闪',
           primaryText: noticeContent.primaryText || noticeContent.text || `城区 ${delivery.maxDistanceKm} 公里配送`,
@@ -55,12 +60,12 @@ Page({
           primaryText: `城区 ${delivery.maxDistanceKm} 公里配送`,
           secondaryText: `${delivery.promiseMinutes} 分钟送货上门`
         },
-        quicks: Array.isArray(quickItems) && quickItems.length
-          ? this.data.quicks.map((fallback, index) => Object.assign({}, fallback, quickItems[index] || {}))
-          : this.data.quicks,
-        zones: Array.isArray(zoneItems) && zoneItems.length
-          ? this.data.zones.map((fallback, index) => Object.assign({}, fallback, zoneItems[index] || {}))
-          : this.data.zones,
+        quicks: !quickEntry ? [] : Array.isArray(quickItems)
+          ? quickItems.map((item, index) => Object.assign({}, DEFAULT_QUICKS[index % DEFAULT_QUICKS.length], item))
+          : DEFAULT_QUICKS,
+        zones: !activityZone ? [] : Array.isArray(zoneItems)
+          ? zoneItems.map((item, index) => Object.assign({}, DEFAULT_ZONES[index % DEFAULT_ZONES.length], item))
+          : DEFAULT_ZONES,
         loading: false
       })
     } catch (error) {

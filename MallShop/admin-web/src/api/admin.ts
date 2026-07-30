@@ -43,6 +43,7 @@ export const adminApi = {
   homeModules: () => data<HomeModule[]>(http.get('/admin/home-modules')),
   createHomeModule: (payload: Omit<HomeModule, 'id' | 'publishedAt' | 'updatedAt'>) => data<HomeModule[]>(http.post('/admin/home-modules', payload)),
   updateHomeModule: (id: number, payload: Omit<HomeModule, 'id' | 'publishedAt' | 'updatedAt'>) => data<HomeModule[]>(http.put(`/admin/home-modules/${id}`, payload)),
+  deleteHomeModule: (id: number) => data(http.delete(`/admin/home-modules/${id}`)),
   activities: () => data<Activity[]>(http.get('/admin/activities')),
   updateActivity: (code: string, payload: Omit<Activity, 'code'>) => data<Activity>(http.put(`/admin/activities/${code}`, payload)),
 }

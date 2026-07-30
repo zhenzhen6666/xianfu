@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { Edit, Plus, Refresh } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { Delete, Edit, Plus, Refresh } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi } from '../api/admin'
 import PageToolbar from '../components/PageToolbar.vue'
 import type { Activity, HomeModule } from '../types/api'
@@ -112,14 +112,24 @@ function editModule(row: HomeModule) {
   Object.assign(moduleForm, row)
   const content = parseContent(row.contentJson)
   if (row.moduleType === 'QUICK_ENTRY') {
-    const items = Array.isArray(content.items) ? content.items : []
-    quickItems.value = quickDefaults.map((fallback, index) => ({ ...fallback, ...(items[index] || {}) }))
+    const items = Array.isArray(content.items) ? content.items : null
+    quickItems.value = items
+      ? items.map((item: Partial<QuickItem>, index: number) => ({
+          ...quickDefaults[index % quickDefaults.length],
+          ...item,
+        }))
+      : quickDefaults.map(item => ({ ...item }))
   } else {
     quickItems.value = []
   }
   if (row.moduleType === 'ACTIVITY_ZONE') {
-    const items = Array.isArray(content.items) ? content.items : []
-    zoneItems.value = zoneDefaults.map((fallback, index) => ({ ...fallback, ...(items[index] || {}) }))
+    const items = Array.isArray(content.items) ? content.items : null
+    zoneItems.value = items
+      ? items.map((item: Partial<ZoneItem>, index: number) => ({
+          ...zoneDefaults[index % zoneDefaults.length],
+          ...item,
+        }))
+      : zoneDefaults.map(item => ({ ...item }))
   } else {
     zoneItems.value = []
   }
@@ -142,8 +152,8 @@ function editActivity(row: Activity) {
 
 function moduleLabel(type: string) {
   return ({
-    QUICK_ENTRY: '四个快捷入口',
-    ACTIVITY_ZONE: '两张活动卡片',
+    QUICK_ENTRY: '快捷入口',
+    ACTIVITY_ZONE: '活动卡片',
     ANNOUNCEMENT: '配送提示条',
     BANNER: '首页横幅',
     PRODUCT: '商品展示区',
@@ -167,14 +177,14 @@ function modulePreview(item: HomeModule) {
 function buildModuleJson() {
   if (moduleForm.moduleType === 'QUICK_ENTRY') {
     if (quickItems.value.some(item => !item.icon.trim() || !item.name.trim() || !item.type.trim())) {
-      ElMessage.warning('请完整填写四个快捷入口')
+      ElMessage.warning('请完整填写每个快捷入口')
       return null
     }
     return JSON.stringify({ items: quickItems.value }, null, 2)
   }
   if (moduleForm.moduleType === 'ACTIVITY_ZONE') {
     if (zoneItems.value.some(item => !item.kicker.trim() || !item.title.trim() || !item.linkText.trim() || !item.image.trim() || !item.type.trim())) {
-      ElMessage.warning('请完整填写两张活动卡片')
+      ElMessage.warning('请完整填写每张活动卡片')
       return null
     }
     return JSON.stringify({ items: zoneItems.value }, null, 2)
@@ -187,6 +197,44 @@ function buildModuleJson() {
     return JSON.stringify({ ...noticeForm }, null, 2)
   }
   return validJson(moduleForm.contentJson) ? moduleForm.contentJson : null
+}
+
+function addQuickItem() {
+  const fallback = quickDefaults[quickItems.value.length % quickDefaults.length]
+  quickItems.value.push({ ...fallback, icon: '新', name: '新入口', type: '' })
+}
+
+function addZoneItem() {
+  const fallback = zoneDefaults[zoneItems.value.length % zoneDefaults.length]
+  zoneItems.value.push({ ...fallback, kicker: '活动推荐', title: '新活动', type: '' })
+}
+
+function removeQuickItem(index: number) {
+  quickItems.value.splice(index, 1)
+}
+
+function removeZoneItem(index: number) {
+  zoneItems.value.splice(index, 1)
+}
+
+function moveItem<T>(items: T[], index: number, offset: -1 | 1) {
+  const target = index + offset
+  if (target < 0 || target >= items.length) return
+  const [item] = items.splice(index, 1)
+  items.splice(target, 0, item)
+}
+
+async function deleteModule(item: HomeModule) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除“${item.title || moduleLabel(item.moduleType)}”吗？删除后小程序对应区域将不再展示。`,
+      '删除首页内容',
+      { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' },
+    )
+  } catch { return }
+  await adminApi.deleteHomeModule(item.id)
+  ElMessage.success('首页内容已删除')
+  await load()
 }
 
 async function save() {
@@ -237,7 +285,7 @@ onMounted(load)
     <article class="content-card marketing-card" v-loading="loading">
       <el-tabs v-model="activeTab">
         <el-tab-pane label="首页展示内容" name="modules">
-          <div class="home-config-tip">截图中的配送提示、四个入口和两张活动卡片都在这里修改；保存后用户下拉刷新小程序首页即可看到。</div>
+          <div class="home-config-tip">截图中的配送提示、快捷入口和活动卡片都在这里管理；支持新增、编辑、排序、隐藏和删除，保存后用户下拉刷新小程序首页即可看到。</div>
           <div class="module-grid">
             <div v-for="item in modules" :key="item.id" class="module-item">
               <div class="module-icon">{{ item.moduleType.slice(0, 1) }}</div>
@@ -247,7 +295,10 @@ onMounted(load)
                 <p>{{ modulePreview(item) }} · 更新于 {{ dateTime(item.updatedAt) }}</p>
               </div>
               <el-tag :type="item.enabled ? 'success' : 'info'" round>{{ item.enabled ? '展示中' : '已隐藏' }}</el-tag>
-              <el-button circle :icon="Edit" @click="editModule(item)" />
+              <div class="module-actions">
+                <el-button circle :icon="Edit" title="编辑" @click="editModule(item)" />
+                <el-button circle :icon="Delete" type="danger" plain title="删除" @click="deleteModule(item)" />
+              </div>
             </div>
           </div>
           <el-empty v-if="!modules.length" description="暂无首页组件" />
@@ -270,8 +321,8 @@ onMounted(load)
         <div class="form-grid">
           <el-form-item label="组件类型">
             <el-select v-model="moduleForm.moduleType" :disabled="Boolean(moduleForm.id)" @change="initializeModuleEditor">
-              <el-option label="四个快捷入口" value="QUICK_ENTRY" />
-              <el-option label="两张活动卡片" value="ACTIVITY_ZONE" />
+              <el-option label="快捷入口" value="QUICK_ENTRY" />
+              <el-option label="活动卡片" value="ACTIVITY_ZONE" />
               <el-option label="配送提示条" value="ANNOUNCEMENT" />
               <el-option label="首页横幅（高级配置）" value="BANNER" />
               <el-option label="商品区（高级配置）" value="PRODUCT" />
@@ -283,10 +334,14 @@ onMounted(load)
         </div>
 
         <template v-if="moduleForm.moduleType === 'QUICK_ENTRY'">
-          <el-divider content-position="left">四个快捷入口</el-divider>
+          <div class="visual-editor-head"><el-divider content-position="left">快捷入口（{{ quickItems.length }} 个）</el-divider><el-button type="primary" plain :icon="Plus" @click="addQuickItem">新增入口</el-button></div>
+          <el-empty v-if="!quickItems.length" description="暂无快捷入口，可点击新增" :image-size="70" />
           <div class="visual-editor-grid quick-editor-grid">
             <div v-for="(item, index) in quickItems" :key="index" class="visual-item-editor">
-              <div class="editor-item-title"><span :class="['config-icon-preview', item.theme]">{{ item.icon }}</span><strong>入口 {{ index + 1 }}</strong></div>
+              <div class="editor-item-title">
+                <span :class="['config-icon-preview', item.theme]">{{ item.icon }}</span><strong>入口 {{ index + 1 }}</strong>
+                <div class="editor-item-actions"><el-button link :disabled="index === 0" @click="moveItem(quickItems, index, -1)">上移</el-button><el-button link :disabled="index === quickItems.length - 1" @click="moveItem(quickItems, index, 1)">下移</el-button><el-button link type="danger" @click="removeQuickItem(index)">删除</el-button></div>
+              </div>
               <el-form-item label="图标文字"><el-input v-model="item.icon" maxlength="6" placeholder="例如：券" /></el-form-item>
               <el-form-item label="入口名称"><el-input v-model="item.name" maxlength="10" /></el-form-item>
               <el-form-item label="跳转活动编码"><el-input v-model="item.type" placeholder="例如：new" /></el-form-item>
@@ -296,10 +351,14 @@ onMounted(load)
         </template>
 
         <template v-else-if="moduleForm.moduleType === 'ACTIVITY_ZONE'">
-          <el-divider content-position="left">两张活动卡片</el-divider>
+          <div class="visual-editor-head"><el-divider content-position="left">活动卡片（{{ zoneItems.length }} 张）</el-divider><el-button type="primary" plain :icon="Plus" @click="addZoneItem">新增卡片</el-button></div>
+          <el-empty v-if="!zoneItems.length" description="暂无活动卡片，可点击新增" :image-size="70" />
           <div class="visual-editor-grid">
             <div v-for="(item, index) in zoneItems" :key="index" class="visual-item-editor zone-editor">
-              <div class="editor-item-title"><span :class="['zone-color-preview', item.theme]" /><strong>活动卡片 {{ index + 1 }}</strong></div>
+              <div class="editor-item-title">
+                <span :class="['zone-color-preview', item.theme]" /><strong>活动卡片 {{ index + 1 }}</strong>
+                <div class="editor-item-actions"><el-button link :disabled="index === 0" @click="moveItem(zoneItems, index, -1)">上移</el-button><el-button link :disabled="index === zoneItems.length - 1" @click="moveItem(zoneItems, index, 1)">下移</el-button><el-button link type="danger" @click="removeZoneItem(index)">删除</el-button></div>
+              </div>
               <div class="form-grid">
                 <el-form-item label="小标题"><el-input v-model="item.kicker" maxlength="12" placeholder="省心搭配" /></el-form-item>
                 <el-form-item label="主标题"><el-input v-model="item.title" maxlength="12" placeholder="在家做饭" /></el-form-item>

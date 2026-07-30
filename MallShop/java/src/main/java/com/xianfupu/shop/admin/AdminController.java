@@ -11,6 +11,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -156,6 +157,12 @@ public class AdminController {
     List<AdminService.AdminHomeModule> updateHomeModule(@PathVariable long id,
                                                         @Valid @RequestBody HomeModuleRequest request) {
         return service.saveHomeModule(CurrentUser.id(), id, request.toCommand());
+    }
+
+    @DeleteMapping("/home-modules/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteHomeModule(@PathVariable long id) {
+        service.deleteHomeModule(CurrentUser.id(), id);
     }
 
     @GetMapping("/activities")

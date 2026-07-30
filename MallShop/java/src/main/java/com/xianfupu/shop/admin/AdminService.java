@@ -371,6 +371,17 @@ public class AdminService {
         return homeModules();
     }
 
+    @Transactional
+    public void deleteHomeModule(long adminId, long id) {
+        AdminHomeModule module = jdbc.sql("""
+                SELECT id, module_type, title, content_json, sort_order, enabled, published_at, updated_at
+                FROM home_modules WHERE id = :id
+                """).param("id", id).query(AdminHomeModule.class).optional()
+                .orElseThrow(() -> BusinessException.notFound("HOME_MODULE_NOT_FOUND", "首页组件不存在"));
+        jdbc.sql("DELETE FROM home_modules WHERE id = :id").param("id", id).update();
+        audit(adminId, "DELETE_HOME_MODULE", "HOME_MODULE", Long.toString(id), module);
+    }
+
     public List<AdminActivity> activities() {
         return jdbc.sql("""
                 SELECT code, name, activity_type, description, rules_json, starts_at, ends_at, enabled

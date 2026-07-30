@@ -113,4 +113,29 @@ class CheckoutFlowIntegrationTest {
         assertThat(refreshed.claimedCount()).isEqualTo(1);
         assertThat(refreshed.remainingStock()).isEqualTo(19);
     }
+
+    @Test
+    void adminCreatesUpdatesAndDeletesHomeContent() {
+        long adminId = authService.devAdminLogin("TestAdminSecret", "首页管理员").user().id();
+        AdminService.HomeModuleCommand createdCommand = new AdminService.HomeModuleCommand(
+                "QUICK_ENTRY", "测试入口区",
+                "{\"items\":[{\"icon\":\"测\",\"name\":\"测试入口\",\"theme\":\"mint\",\"type\":\"new\"}]}",
+                99, true);
+        AdminService.AdminHomeModule created = adminService.saveHomeModule(adminId, null, createdCommand)
+                .stream().filter(item -> "测试入口区".equals(item.title())).findFirst().orElseThrow();
+
+        AdminService.HomeModuleCommand updatedCommand = new AdminService.HomeModuleCommand(
+                "QUICK_ENTRY", "测试入口区",
+                "{\"items\":[]}", 99, false);
+        AdminService.AdminHomeModule updated = adminService.saveHomeModule(adminId, created.id(), updatedCommand)
+                .stream().filter(item -> item.id() == created.id()).findFirst().orElseThrow();
+        assertThat(updated.enabled()).isFalse();
+        assertThat(updated.contentJson()).isEqualTo("{\"items\":[]}");
+
+        adminService.deleteHomeModule(adminId, created.id());
+        assertThat(adminService.homeModules()).noneMatch(item -> item.id() == created.id());
+        assertThatThrownBy(() -> adminService.deleteHomeModule(adminId, created.id()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("首页组件不存在");
+    }
 }

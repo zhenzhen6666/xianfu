@@ -27,21 +27,21 @@
     <view class="hero-bubble">鲜</view>
   </view>
 
-  <view class="notice row">
+  <view class="notice row" wx:if="{{showNotice}}">
     <text class="notice-icon">{{notice.icon}}</text>
     <text class="notice-main">{{notice.primaryText}}</text>
     <text class="notice-dot">·</text>
     <text>{{notice.secondaryText}}</text>
   </view>
 
-  <view class="quick-grid card">
+  <view class="quick-grid card" wx:if="{{quicks.length}}">
     <view class="quick-item" wx:for="{{quicks}}" wx:key="name" data-type="{{item.type}}" bindtap="goActivity">
       <view class="quick-icon {{item.theme}}">{{item.icon}}</view>
       <text>{{item.name}}</text>
     </view>
   </view>
 
-  <view class="zone-grid">
+  <view class="zone-grid" wx:if="{{zones.length}}">
     <view class="zone zone-{{item.theme}}" wx:for="{{zones}}" wx:key="title" data-type="{{item.type}}" bindtap="goActivity">
       <view class="zone-kicker">{{item.kicker}}</view>
       <view class="zone-title">{{item.title}}</view>
