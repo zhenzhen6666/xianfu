@@ -18,6 +18,11 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private final com.xianfupu.shop.monitoring.MonitoringService monitoring;
+
+    public GlobalExceptionHandler(com.xianfupu.shop.monitoring.MonitoringService monitoring) {
+        this.monitoring = monitoring;
+    }
 
     @ExceptionHandler(BusinessException.class)
     ResponseEntity<ApiError> handleBusiness(BusinessException ex, HttpServletRequest request) {
@@ -44,6 +49,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     ResponseEntity<ApiError> handleUnexpected(Exception ex, HttpServletRequest request) {
         log.error("Unhandled request error: {}", request.getRequestURI(), ex);
+        try {
+            monitoring.error(request.getHeader("X-Request-Id"), "INTERNAL_ERROR", ex.getMessage(),
+                    request.getMethod(), request.getRequestURI(), null, ex);
+        } catch (Exception loggingFailure) {
+            log.error("Unable to persist error monitoring record", loggingFailure);
+        }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ApiError(
                 Instant.now(), 500, "INTERNAL_ERROR", "服务器暂时无法处理请求", request.getRequestURI(), null));
     }

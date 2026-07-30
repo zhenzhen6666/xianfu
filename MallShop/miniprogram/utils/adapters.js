@@ -31,7 +31,11 @@ function cart(view) {
 
 const STATUS = {
   WAIT_PAY: { key: 'wait_pay', text: '待支付' },
-  SHIPPING: { key: 'shipping', text: '待配送' },
+  PAID: { key: 'paid', text: '已支付' },
+  ACCEPTED: { key: 'accepted', text: '已接单' },
+  PREPARING: { key: 'preparing', text: '备货中' },
+  SHIPPING: { key: 'shipping', text: '配送中' },
+  DELIVERED: { key: 'delivered', text: '已送达' },
   COMPLETED: { key: 'complete', text: '已完成' },
   CANCELLED: { key: 'cancel', text: '已取消' },
   REFUNDED: { key: 'cancel', text: '已退款' }
@@ -50,6 +54,7 @@ function order(detail) {
     id: detail.orderNo,
     status: status.key,
     statusText: detail.statusText || status.text,
+    isFulfilling: ['PAID', 'ACCEPTED', 'PREPARING', 'SHIPPING', 'DELIVERED'].includes(detail.status),
     createdAt: formatDate(detail.createdAt),
     items: (detail.items || []).map(item => Object.assign({}, product(item), { count: item.count })),
     subtotal: money(detail.subtotal),

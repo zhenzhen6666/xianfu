@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -34,6 +35,17 @@ public class AuthController {
         return authService.devAdminLogin(request.secret(), request.nickname());
     }
 
+    @PostMapping("/refresh")
+    AuthService.LoginResult refresh(@Valid @RequestBody RefreshRequest request, HttpServletRequest servletRequest) {
+        return authService.refresh(request.refreshToken(), clientIp(servletRequest),
+                servletRequest.getHeader("User-Agent"));
+    }
+
+    @PostMapping("/logout")
+    void logout(@Valid @RequestBody RefreshRequest request) {
+        authService.logout(request.refreshToken());
+    }
+
     @GetMapping("/me")
     AuthService.UserProfile me() {
         return authService.findById(CurrentUser.id());
@@ -47,5 +59,14 @@ public class AuthController {
     }
 
     public record DevAdminLoginRequest(@NotBlank String secret, @NotBlank @Size(max = 80) String nickname) {
+    }
+
+    public record RefreshRequest(@NotBlank String refreshToken) {
+    }
+
+    private String clientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        return forwarded == null || forwarded.isBlank()
+                ? request.getRemoteAddr() : forwarded.split(",")[0].trim();
     }
 }

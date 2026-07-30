@@ -1,0 +1,2 @@
+@import "../assets.wxss";
+.after{display:flex;flex-direction:column;gap:14rpx}.between{display:flex;justify-content:space-between}.state{color:#168a51;font-size:25rpx}.money{font-weight:700}.timeline{display:flex;gap:14rpx;padding-top:12rpx;border-top:1rpx solid #edf0ed}.timeline>text{color:#168a51}.timeline view{display:flex;flex-direction:column;gap:6rpx}.timeline small,.muted{color:#8a958e;font-size:23rpx}.error{padding:14rpx;color:#c84834;background:#fff0ed;border-radius:12rpx}

@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,6 +33,11 @@ public class AfterSaleController {
     @ResponseStatus(HttpStatus.CREATED)
     AfterSaleService.AfterSaleView create(@Valid @RequestBody AfterSaleRequest request) {
         return service.create(CurrentUser.id(), request.orderNo(), request.reason(), request.description());
+    }
+
+    @GetMapping("/{afterSaleNo}")
+    AfterSaleService.AfterSaleView get(@PathVariable String afterSaleNo) {
+        return service.get(CurrentUser.id(), afterSaleNo);
     }
 
     public record AfterSaleRequest(@NotBlank String orderNo, @NotBlank @Size(max = 255) String reason,

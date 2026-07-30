@@ -17,8 +17,8 @@
       <view class="order-actions">
         <button wx:if="{{item.status === 'wait_pay'}}" class="light" data-id="{{item.id}}" bindtap="cancelOrder">取消订单</button>
         <button wx:if="{{item.status === 'wait_pay'}}" class="primary" data-id="{{item.id}}" data-action="pay" bindtap="primaryAction">去支付</button>
-        <button wx:if="{{item.status === 'shipping'}}" class="light" bindtap="viewProgress">配送进度</button>
-        <button wx:if="{{item.status === 'shipping'}}" class="primary" data-id="{{item.id}}" data-action="confirm" bindtap="primaryAction">确认收货</button>
+        <button wx:if="{{item.isFulfilling}}" class="light" bindtap="viewProgress">履约进度</button>
+        <button wx:if="{{item.status === 'delivered'}}" class="primary" data-id="{{item.id}}" data-action="confirm" bindtap="primaryAction">确认收货</button>
         <button wx:if="{{item.status === 'complete'}}" class="light" data-id="{{item.id}}" bindtap="afterSale">申请售后</button>
         <button wx:if="{{item.status === 'complete'}}" class="primary" data-id="{{item.id}}" data-action="reorder" bindtap="primaryAction">再来一单</button>
         <button wx:if="{{item.status === 'cancel'}}" class="primary" data-id="{{item.id}}" data-action="reorder" bindtap="primaryAction">重新购买</button>

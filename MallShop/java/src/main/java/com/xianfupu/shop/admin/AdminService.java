@@ -112,29 +112,44 @@ public class AdminService {
     @Transactional
     public OrderService.OrderDetail updateOrderStatus(long adminId, String orderNo, String status) {
         String target = status.toUpperCase();
-        if (!List.of("SHIPPING", "COMPLETED", "CANCELLED").contains(target)) {
+        if (!List.of("ACCEPTED", "PREPARING", "SHIPPING", "DELIVERED", "COMPLETED", "CANCELLED").contains(target)) {
             throw BusinessException.badRequest("INVALID_ORDER_STATUS", "不支持的订单状态");
         }
-        Long userId = jdbc.sql("SELECT user_id FROM shop_orders WHERE order_no = :orderNo")
-                .param("orderNo", orderNo).query(Long.class).optional()
+        OrderStatusRow order = jdbc.sql("""
+                SELECT user_id, status FROM shop_orders WHERE order_no = :orderNo FOR UPDATE
+                """).param("orderNo", orderNo).query(OrderStatusRow.class).optional()
                 .orElseThrow(() -> BusinessException.notFound("ORDER_NOT_FOUND", "订单不存在"));
         if ("COMPLETED".equals(target)) {
-            OrderService.OrderDetail result = orderService.confirm(userId, orderNo);
+            OrderService.OrderDetail result = orderService.confirm(order.userId(), orderNo);
             acceptOrderNotification(orderNo);
             audit(adminId, "UPDATE_ORDER_STATUS", "ORDER", orderNo, status);
             return result;
         }
         if ("CANCELLED".equals(target)) {
-            OrderService.OrderDetail result = orderService.cancel(userId, orderNo, "商家取消订单");
+            OrderService.OrderDetail result = orderService.cancel(order.userId(), orderNo, "商家取消订单");
             acceptOrderNotification(orderNo);
             audit(adminId, "UPDATE_ORDER_STATUS", "ORDER", orderNo, status);
             return result;
         }
+        String expected = switch (target) {
+            case "ACCEPTED" -> "PAID";
+            case "PREPARING" -> "ACCEPTED";
+            case "SHIPPING" -> "PREPARING";
+            case "DELIVERED" -> "SHIPPING";
+            default -> "";
+        };
+        if (!expected.equals(order.status())) {
+            throw BusinessException.conflict("ORDER_STATUS_INVALID",
+                    "订单需按 已支付→已接单→备货中→配送中→已送达→已完成 顺序流转");
+        }
         int updated = jdbc.sql("""
                 UPDATE shop_orders SET status = :status,
+                    accepted_at = CASE WHEN :status = 'ACCEPTED' THEN CURRENT_TIMESTAMP ELSE accepted_at END,
+                    preparing_at = CASE WHEN :status = 'PREPARING' THEN CURRENT_TIMESTAMP ELSE preparing_at END,
                     shipped_at = CASE WHEN :status = 'SHIPPING' THEN CURRENT_TIMESTAMP ELSE shipped_at END,
-                    updated_at = CURRENT_TIMESTAMP WHERE order_no = :orderNo
-                """).param("status", target).param("orderNo", orderNo).update();
+                    delivered_at = CASE WHEN :status = 'DELIVERED' THEN CURRENT_TIMESTAMP ELSE delivered_at END,
+                    updated_at = CURRENT_TIMESTAMP WHERE order_no = :orderNo AND status = :expected
+                """).param("status", target).param("orderNo", orderNo).param("expected", expected).update();
         if (updated == 0) {
             throw BusinessException.notFound("ORDER_NOT_FOUND", "订单不存在");
         }
@@ -170,7 +185,8 @@ public class AdminService {
                 .query(Long.class).single();
         BigDecimal todaySales = jdbc.sql("""
                 SELECT COALESCE(SUM(pay_amount), 0) FROM shop_orders
-                WHERE paid_at >= CURRENT_DATE AND status IN ('SHIPPING','COMPLETED')
+                WHERE paid_at >= CURRENT_DATE AND status IN
+                    ('PAID','ACCEPTED','PREPARING','SHIPPING','DELIVERED','COMPLETED','REFUNDED')
                 """).query(BigDecimal.class).single();
         long newUsers = jdbc.sql("SELECT COUNT(*) FROM users WHERE created_at >= CURRENT_DATE AND role = 'USER'")
                 .query(Long.class).single();
@@ -295,7 +311,8 @@ public class AdminService {
                 ? "" : " WHERE a.status = :status";
         JdbcClient.StatementSpec query = jdbc.sql("""
                 SELECT a.after_sale_no, o.order_no, u.nickname, a.reason, a.description,
-                       a.status, a.refund_amount, a.merchant_reply, a.created_at
+                       a.status, a.refund_amount, a.refund_status, a.refunded_amount,
+                       a.refund_error, a.merchant_reply, a.created_at
                 FROM after_sales a JOIN shop_orders o ON o.id = a.order_id JOIN users u ON u.id = a.user_id
                 """ + condition + " ORDER BY a.id DESC");
         if (!condition.isBlank()) {
@@ -410,16 +427,66 @@ public class AdminService {
         return activities().stream().filter(item -> item.code().equals(code)).findFirst().orElseThrow();
     }
 
-    @Transactional
-    public void updateAfterSale(long adminId, String afterSaleNo, String status, String reply) {
-        int updated = jdbc.sql("""
-                UPDATE after_sales SET status = :status, merchant_reply = :reply,
-                    updated_at = CURRENT_TIMESTAMP WHERE after_sale_no = :no
-                """).param("status", status.toUpperCase()).param("reply", reply).param("no", afterSaleNo).update();
-        if (updated == 0) {
+    public void updateAfterSale(long adminId, String afterSaleNo, String status, String reply,
+                                BigDecimal requestedAmount) {
+        AfterSaleProcessRow row = jdbc.sql("""
+                SELECT a.id, o.order_no, a.status, a.refund_amount
+                FROM after_sales a JOIN shop_orders o ON o.id = a.order_id
+                WHERE a.after_sale_no = :no
+                """).param("no", afterSaleNo).query(AfterSaleProcessRow.class).optional().orElse(null);
+        if (row == null) {
             throw BusinessException.notFound("AFTER_SALE_NOT_FOUND", "售后申请不存在");
         }
-        audit(adminId, "UPDATE_AFTER_SALE", "AFTER_SALE", afterSaleNo, status);
+        String target = status.toUpperCase();
+        if (!List.of("PROCESSING", "APPROVED", "REJECTED").contains(target)) {
+            throw BusinessException.badRequest("INVALID_AFTER_SALE_STATUS", "不支持的售后状态");
+        }
+        if ("APPROVED".equals(target)) {
+            BigDecimal amount = requestedAmount == null ? row.refundAmount() : requestedAmount;
+            try {
+                paymentService.refund(row.orderNo(), amount,
+                        reply == null || reply.isBlank() ? "售后退款" : reply);
+                jdbc.sql("""
+                        UPDATE after_sales SET status = 'APPROVED', refund_amount = :amount,
+                            refunded_amount = :amount, refund_status = 'SUCCEEDED', refund_error = NULL,
+                            merchant_reply = :reply, processed_at = CURRENT_TIMESTAMP,
+                            refunded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :id
+                        """).param("amount", amount).param("reply", reply).param("id", row.id()).update();
+                addAfterSaleHistory(row.id(), "APPROVED", "SUCCEEDED",
+                        "商家同意售后，退款 " + amount + " 元已提交成功", adminId);
+            } catch (RuntimeException ex) {
+                jdbc.sql("""
+                        UPDATE after_sales SET status = 'PROCESSING', refund_amount = :amount,
+                            refund_status = 'FAILED', refund_error = :error, merchant_reply = :reply,
+                            processed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :id
+                        """).param("amount", amount).param("error", ex.getMessage())
+                        .param("reply", reply).param("id", row.id()).update();
+                addAfterSaleHistory(row.id(), "PROCESSING", "FAILED",
+                        "退款失败，等待管理员重试：" + ex.getMessage(), adminId);
+            }
+        } else {
+            jdbc.sql("""
+                    UPDATE after_sales SET status = :status, merchant_reply = :reply,
+                        refund_status = CASE WHEN :status = 'REJECTED' THEN 'NOT_REQUIRED' ELSE refund_status END,
+                        processed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :id
+                    """).param("status", target).param("reply", reply).param("id", row.id()).update();
+            addAfterSaleHistory(row.id(), target,
+                    "REJECTED".equals(target) ? "NOT_REQUIRED" : "NOT_STARTED",
+                    reply == null || reply.isBlank() ? "售后状态已更新" : reply, adminId);
+        }
+        audit(adminId, "UPDATE_AFTER_SALE", "AFTER_SALE", afterSaleNo,
+                new AfterSaleUpdateAudit(target, requestedAmount, reply));
+    }
+
+    private void addAfterSaleHistory(long afterSaleId, String status, String refundStatus,
+                                     String message, long operatorId) {
+        jdbc.sql("""
+                INSERT INTO after_sale_status_history(after_sale_id, status, refund_status, message, operator_user_id)
+                VALUES (:id, :status, :refundStatus, :message, :operatorId)
+                """).param("id", afterSaleId).param("status", status).param("refundStatus", refundStatus)
+                .param("message", message).param("operatorId", operatorId).update();
     }
 
     private void audit(long adminId, String operation, String targetType, String targetId, Object detail) {
@@ -530,6 +597,9 @@ public class AdminService {
                                          LocalDateTime endsAt, boolean enabled) {
     }
 
+    private record OrderStatusRow(long userId, String status) {
+    }
+
     private record CouponUser(long id, String nickname, String mobile) {
     }
 
@@ -550,7 +620,14 @@ public class AdminService {
 
     public record AfterSaleAdminView(String afterSaleNo, String orderNo, String nickname, String reason,
                                      String description, String status, BigDecimal refundAmount,
+                                     String refundStatus, BigDecimal refundedAmount, String refundError,
                                      String merchantReply, LocalDateTime createdAt) {
+    }
+
+    private record AfterSaleProcessRow(long id, String orderNo, String status, BigDecimal refundAmount) {
+    }
+
+    private record AfterSaleUpdateAudit(String status, BigDecimal refundAmount, String reply) {
     }
 
     public record CategoryCommand(String parentCode, String name, String iconUrl, int sortOrder,

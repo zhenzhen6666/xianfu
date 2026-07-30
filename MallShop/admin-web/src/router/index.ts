@@ -18,6 +18,7 @@ const router = createRouter({
         { path: 'after-sales', component: () => import('../views/AfterSalesView.vue'), meta: { title: '售后处理', eyebrow: '售后审核与商家回复' } },
         { path: 'marketing', component: () => import('../views/MarketingView.vue'), meta: { title: '营销装修', eyebrow: '首页组件与营销活动' } },
         { path: 'delivery', component: () => import('../views/DeliveryView.vue'), meta: { title: '配送设置', eyebrow: '配送半径、运费与时效' } },
+        { path: 'operations', component: () => import('../views/OperationsView.vue'), meta: { title: '系统运维', eyebrow: '告警、日志、支付回调与会话' } },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },

@@ -1,0 +1,2 @@
+@import "../assets.wxss";
+.product{display:flex;gap:20rpx;align-items:center}.product image{width:150rpx;height:150rpx;border-radius:18rpx}.grow{display:flex;flex:1;flex-direction:column;gap:10rpx}.title{font-weight:700}.price{color:#168a51;font-size:34rpx;font-weight:700}.actions{display:flex;flex-direction:column;gap:10rpx}.actions button{margin:0;padding:0 20rpx;background:#168a51;color:#fff;font-size:23rpx;line-height:58rpx}.actions .plain{background:#eef4ef;color:#637168}

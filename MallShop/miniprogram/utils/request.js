@@ -1,6 +1,7 @@
 const config = require('./config')
 
 let loginPromise = null
+let refreshPromise = null
 
 function compactQuery(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return data
@@ -43,6 +44,7 @@ function rawRequest(path, options = {}) {
 
 function saveLogin(result) {
   wx.setStorageSync(config.TOKEN_KEY, result.accessToken)
+  wx.setStorageSync(config.REFRESH_TOKEN_KEY, result.refreshToken)
   wx.setStorageSync(config.USER_KEY, result.user)
   return result.user
 }
@@ -82,15 +84,34 @@ function request(path, options = {}) {
   if (options.auth === false) return rawRequest(path, options)
   return ensureLogin().then(() => rawRequest(path, options)).catch(error => {
     if (error.statusCode !== 401 || options.retried) throw error
-    wx.removeStorageSync(config.TOKEN_KEY)
-    wx.removeStorageSync(config.USER_KEY)
-    return ensureLogin(true).then(() => rawRequest(path, Object.assign({}, options, { retried: true })))
+    const refreshToken = wx.getStorageSync(config.REFRESH_TOKEN_KEY)
+    if (!refreshToken) throw error
+    if (!refreshPromise) {
+      refreshPromise = rawRequest('/auth/refresh', {
+        method: 'POST', auth: false, data: { refreshToken }
+      }).then(saveLogin).finally(() => { refreshPromise = null })
+    }
+    return refreshPromise
+      .then(() => rawRequest(path, Object.assign({}, options, { retried: true })))
+      .catch(refreshError => {
+        clearLogin()
+        throw refreshError
+      })
   })
 }
 
-function logout() {
+function clearLogin() {
   wx.removeStorageSync(config.TOKEN_KEY)
+  wx.removeStorageSync(config.REFRESH_TOKEN_KEY)
   wx.removeStorageSync(config.USER_KEY)
+}
+
+function logout() {
+  const refreshToken = wx.getStorageSync(config.REFRESH_TOKEN_KEY)
+  if (refreshToken) rawRequest('/auth/logout', {
+    method: 'POST', auth: false, data: { refreshToken }
+  }).catch(() => {})
+  clearLogin()
 }
 
 module.exports = { request, ensureLogin, logout }

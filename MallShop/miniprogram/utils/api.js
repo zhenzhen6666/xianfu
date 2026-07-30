@@ -28,6 +28,9 @@ module.exports = {
   points: () => get('/users/me/points'),
   profile: () => get('/users/me/profile'),
   favorites: () => get('/users/me/favorites'),
+  favorite: code => post(`/users/me/favorites/${code}`),
+  unfavorite: code => remove(`/users/me/favorites/${code}`),
+  bindWechatMobile: code => post('/users/me/mobile/wechat', { code }),
   drawEgg: () => post('/users/me/activities/egg/draw'),
   previewOrder: data => post('/orders/preview', data),
   createOrder: data => post('/orders', data),
@@ -42,5 +45,7 @@ module.exports = {
     providerTradeNo: `LOCAL-${Date.now()}`,
     callbackSecret: 'local-mock-callback'
   }, false),
-  createAfterSale: data => post('/after-sales', data)
+  createAfterSale: data => post('/after-sales', data),
+  afterSales: () => get('/after-sales'),
+  afterSale: no => get(`/after-sales/${no}`)
 }

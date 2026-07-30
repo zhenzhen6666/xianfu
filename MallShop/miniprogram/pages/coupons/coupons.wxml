@@ -1,0 +1,9 @@
+<view class="asset-page">
+  <view class="tabs"><text wx:for="{{labels}}" wx:key="*this" class="{{active===index?'active':''}}" data-index="{{index}}" bindtap="select">{{item}}</text></view>
+  <view class="coupon asset-card {{item.status!=='AVAILABLE'?'disabled':''}}" wx:for="{{items}}" wx:key="id">
+    <view class="amount"><text>¥</text>{{item.amount}}</view>
+    <view class="grow"><text class="title">{{item.name}}</text><text class="muted">{{item.minimumAmount>0?'满'+item.minimumAmount+'元可用':'无门槛'}}</text><text class="muted">有效期至 {{item.endsAt}}</text></view>
+    <text class="state">{{item.status==='AVAILABLE'?'可使用':item.status==='USED'?'已使用':'已过期'}}</text>
+  </view>
+  <view class="empty" wx:if="{{!loading && !items.length}}">暂无优惠券</view>
+</view>

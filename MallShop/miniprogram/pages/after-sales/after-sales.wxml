@@ -1,0 +1,10 @@
+<view class="asset-page">
+  <view class="asset-card after" wx:for="{{items}}" wx:key="afterSaleNo">
+    <view class="between"><text class="title">{{item.afterSaleNo}}</text><text class="state">{{item.refundStatus==='SUCCEEDED'?'退款成功':item.refundStatus==='FAILED'?'退款失败待重试':item.status==='REJECTED'?'已拒绝':'处理中'}}</text></view>
+    <text class="muted">订单 {{item.orderNo}}</text><text>{{item.reason}}</text>
+    <text class="money">申请退款 ¥{{item.refundAmount}} · 已退 ¥{{item.refundedAmount}}</text>
+    <view class="timeline" wx:for="{{item.history}}" wx:for-item="step" wx:key="createdAt"><text>●</text><view><strong>{{step.message}}</strong><small>{{step.createdAt}}</small></view></view>
+    <text class="error" wx:if="{{item.refundError}}">{{item.refundError}}</text>
+  </view>
+  <view class="empty" wx:if="{{!loading && !items.length}}">暂无退款或售后记录</view>
+</view>

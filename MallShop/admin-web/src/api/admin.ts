@@ -16,12 +16,17 @@ import type {
   OrderNotification,
   Product,
   ProductPayload,
+  ErrorLog,
+  BusinessAlert,
+  PaymentCallbackLog,
+  AuthSession,
 } from '../types/api'
 
 const data = <T>(request: Promise<{ data: T }>) => request.then((response) => response.data)
 
 export const adminApi = {
   login: (nickname: string, secret: string) => data<LoginResult>(http.post('/auth/dev-admin-login', { nickname, secret })),
+  logout: (refreshToken: string) => data(http.post('/auth/logout', { refreshToken })),
   dashboard: () => data<Dashboard>(http.get('/admin/dashboard')),
   products: (status = 'ALL') => data<Product[]>(http.get('/admin/products', { params: { status } })),
   createProduct: (payload: ProductPayload) => data<Product>(http.post('/admin/products', payload)),
@@ -42,7 +47,7 @@ export const adminApi = {
   createCoupon: (payload: CouponPayload) => data<Coupon>(http.post('/admin/coupons', payload)),
   issueCoupon: (code: string, mobile: string) => data<CouponIssue>(http.post(`/admin/coupons/${code}/issues`, { mobile })),
   afterSales: (status = 'ALL') => data<AfterSale[]>(http.get('/admin/after-sales', { params: { status } })),
-  updateAfterSale: (no: string, status: string, reply: string) => data(http.patch(`/admin/after-sales/${no}`, { status, reply })),
+  updateAfterSale: (no: string, status: string, reply: string, refundAmount?: number) => data(http.patch(`/admin/after-sales/${no}`, { status, reply, refundAmount })),
   categories: () => data<Category[]>(http.get('/admin/categories')),
   saveCategory: (code: string, payload: Omit<Category, 'code'>) => data<Category[]>(http.put(`/admin/categories/${code}`, payload)),
   homeModules: () => data<HomeModule[]>(http.get('/admin/home-modules')),
@@ -51,4 +56,10 @@ export const adminApi = {
   deleteHomeModule: (id: number) => data(http.delete(`/admin/home-modules/${id}`)),
   activities: () => data<Activity[]>(http.get('/admin/activities')),
   updateActivity: (code: string, payload: Omit<Activity, 'code'>) => data<Activity>(http.put(`/admin/activities/${code}`, payload)),
+  errorLogs: () => data<ErrorLog[]>(http.get('/admin/operations/errors')),
+  alerts: (status = 'ALL') => data<BusinessAlert[]>(http.get('/admin/operations/alerts', { params: { status } })),
+  acknowledgeAlert: (id: number) => data(http.patch(`/admin/operations/alerts/${id}/acknowledge`)),
+  paymentCallbacks: () => data<PaymentCallbackLog[]>(http.get('/admin/operations/payment-callbacks')),
+  sessions: () => data<AuthSession[]>(http.get('/admin/operations/sessions')),
+  revokeSession: (id: string) => data(http.delete(`/admin/operations/sessions/${id}`)),
 }

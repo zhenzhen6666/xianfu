@@ -3,7 +3,7 @@ const adapters = require('../../utils/adapters')
 
 Page({
   data: {
-    tabs: [{ key: 'all', label: '全部' }, { key: 'wait_pay', label: '待支付' }, { key: 'shipping', label: '待配送' }, { key: 'complete', label: '已完成' }, { key: 'cancel', label: '已取消' }],
+    tabs: [{ key: 'all', label: '全部' }, { key: 'wait_pay', label: '待支付' }, { key: 'fulfilling', label: '履约中' }, { key: 'complete', label: '已完成' }, { key: 'cancel', label: '已取消' }],
     active: 'all', orders: [], loading: false
   },
   onShow() {

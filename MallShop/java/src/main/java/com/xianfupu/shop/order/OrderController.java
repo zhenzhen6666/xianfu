@@ -59,9 +59,12 @@ public class OrderController {
     }
 
     public record OrderRequest(@Min(1) long addressId, @Min(1) Long userCouponId,
-                               @Min(0) Integer pointsToUse, @Size(max = 500) String note) {
+                               @Min(0) Integer pointsToUse, @Size(max = 500) String note,
+                               @Size(max = 80) String idempotencyKey) {
         OrderService.OrderCommand toCommand() {
-            return new OrderService.OrderCommand(addressId, userCouponId, pointsToUse, note);
+            String key = idempotencyKey == null || idempotencyKey.isBlank()
+                    ? java.util.UUID.randomUUID().toString() : idempotencyKey;
+            return new OrderService.OrderCommand(addressId, userCouponId, pointsToUse, note, key);
         }
     }
 

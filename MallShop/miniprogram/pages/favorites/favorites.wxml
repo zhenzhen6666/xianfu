@@ -1,0 +1,9 @@
+<view class="asset-page">
+  <view class="hint">共收藏 {{items.length}} 件商品</view>
+  <view class="asset-card product" wx:for="{{items}}" wx:key="id">
+    <image src="{{item.image}}" mode="aspectFill"/>
+    <view class="grow"><text class="title">{{item.name}}</text><text class="muted">{{item.spec}}</text><text class="price">¥{{item.price}}</text></view>
+    <view class="actions"><button data-id="{{item.id}}" bindtap="addCart">加购</button><button class="plain" data-id="{{item.id}}" bindtap="remove">取消收藏</button></view>
+  </view>
+  <view class="empty" wx:if="{{!loading && !items.length}}">还没有收藏商品</view>
+</view>

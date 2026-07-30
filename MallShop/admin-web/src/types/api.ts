@@ -9,6 +9,10 @@ export interface UserProfile {
 
 export interface LoginResult {
   accessToken: string
+  refreshToken: string
+  sessionId: string
+  accessExpiresAt: string
+  refreshExpiresAt: string
   tokenType: string
   user: UserProfile
 }
@@ -91,7 +95,10 @@ export interface OrderDetail {
   note?: string
   payDeadline?: string
   paidAt?: string
+  acceptedAt?: string
+  preparingAt?: string
   shippedAt?: string
+  deliveredAt?: string
   completedAt?: string
   cancelledAt?: string
   cancelReason?: string
@@ -141,6 +148,9 @@ export interface AfterSale {
   description?: string
   status: string
   refundAmount: number
+  refundStatus: string
+  refundedAmount: number
+  refundError?: string
   merchantReply?: string
   createdAt: string
 }
@@ -218,4 +228,21 @@ export interface ApiError {
   status?: number
   code?: string
   message?: string
+}
+
+export interface ErrorLog {
+  id: number; requestId?: string; level: string; errorCode?: string; message: string
+  requestMethod?: string; requestPath?: string; userId?: number; stackTrace?: string; createdAt: string
+}
+export interface BusinessAlert {
+  id: number; alertType: string; severity: string; title: string; message: string
+  targetType?: string; targetId?: string; status: string; createdAt: string
+}
+export interface PaymentCallbackLog {
+  id: number; paymentNo?: string; channel?: string; success: boolean; signatureValid: boolean
+  providerTradeNo?: string; resultCode?: string; message?: string; payload?: string; createdAt: string
+}
+export interface AuthSession {
+  id: string; userId: number; nickname: string; mobile?: string; role: string; revoked: boolean
+  expiresAt: string; lastSeenAt: string; ipAddress?: string; userAgent?: string; createdAt: string
 }

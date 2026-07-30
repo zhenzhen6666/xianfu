@@ -161,7 +161,8 @@ public class AdminController {
     @PatchMapping("/after-sales/{afterSaleNo}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void updateAfterSale(@PathVariable String afterSaleNo, @Valid @RequestBody AfterSaleUpdateRequest request) {
-        service.updateAfterSale(CurrentUser.id(), afterSaleNo, request.status(), request.reply());
+        service.updateAfterSale(CurrentUser.id(), afterSaleNo, request.status(), request.reply(),
+                request.refundAmount());
     }
 
     @GetMapping("/categories")
@@ -240,7 +241,8 @@ public class AdminController {
         }
     }
 
-    public record AfterSaleUpdateRequest(@NotBlank String status, @Size(max = 1000) String reply) {
+    public record AfterSaleUpdateRequest(@NotBlank String status, @Size(max = 1000) String reply,
+                                         @DecimalMin("0.01") BigDecimal refundAmount) {
     }
 
     public record CategoryRequest(String parentCode, @NotBlank @Size(max = 80) String name,

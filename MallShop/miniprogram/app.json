@@ -7,7 +7,11 @@
     "pages/orders/orders",
     "pages/profile/profile",
     "pages/member/member",
-    "pages/activity/activity"
+    "pages/activity/activity",
+    "pages/favorites/favorites",
+    "pages/coupons/coupons",
+    "pages/points/points",
+    "pages/after-sales/after-sales"
   ],
   "window": {
     "navigationBarBackgroundColor": "#F6FBF7",

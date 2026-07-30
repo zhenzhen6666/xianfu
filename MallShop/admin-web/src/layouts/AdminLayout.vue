@@ -51,6 +51,7 @@ const menuItems = [
   { path: '/after-sales', label: '售后处理', icon: Service },
   { path: '/marketing', label: '营销装修', icon: Promotion },
   { path: '/delivery', label: '配送设置', icon: Setting },
+  { path: '/operations', label: '系统运维', icon: Operation },
 ]
 
 function navigate(path: string) {
@@ -221,6 +222,7 @@ async function openOrderAlert(item: OrderNotification) {
 }
 
 async function acceptOrderAlert(item: OrderNotification) {
+  await adminApi.updateOrderStatus(item.orderNo, 'ACCEPTED')
   await adminApi.acceptOrderNotification(item.orderNo)
   orderAlerts.value = orderAlerts.value.filter(alert => alert.orderNo !== item.orderNo)
   knownOrderNos.delete(item.orderNo)

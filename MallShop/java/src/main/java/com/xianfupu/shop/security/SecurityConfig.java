@@ -28,7 +28,9 @@ public class SecurityConfig {
                 .cors(cors -> {})
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/api/payments/*/callback", "/actuator/health/**").permitAll()
+                        .requestMatchers("/api/auth/wechat-login", "/api/auth/dev-login",
+                                "/api/auth/dev-admin-login", "/api/auth/refresh", "/api/auth/logout",
+                                "/api/payments/*/callback", "/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/catalog/**", "/api/home", "/api/config/delivery", "/api/activities/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

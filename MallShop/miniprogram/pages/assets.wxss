@@ -1,0 +1,1 @@
+.asset-page{min-height:100vh;padding:24rpx;box-sizing:border-box;background:#f5f7f5}.asset-card{margin-bottom:20rpx;padding:26rpx;background:#fff;border-radius:24rpx;box-shadow:0 8rpx 28rpx rgba(25,72,48,.05)}.hint,.empty{padding:40rpx;text-align:center;color:#8a958e}.title{color:#26372e;font-weight:700}.muted{color:#8a958e;font-size:23rpx}

@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestBody;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 
 import java.util.List;
 
@@ -29,6 +32,11 @@ public class UserBenefitController {
     @GetMapping("/profile")
     AuthService.UserProfile profile() {
         return authService.findById(CurrentUser.id());
+    }
+
+    @PostMapping("/mobile/wechat")
+    AuthService.UserProfile bindWechatMobile(@Valid @RequestBody WechatMobileRequest request) {
+        return authService.bindWechatMobile(CurrentUser.id(), request.code());
     }
 
     @GetMapping("/coupons")
@@ -66,5 +74,8 @@ public class UserBenefitController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void unfavorite(@PathVariable String productCode) {
         benefitService.unfavorite(CurrentUser.id(), productCode);
+    }
+
+    public record WechatMobileRequest(@NotBlank String code) {
     }
 }

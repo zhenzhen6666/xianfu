@@ -1,5 +1,6 @@
 const API_BASE_URL_KEY = 'xianfupu_api_base_url'
 const TOKEN_KEY = 'xianfupu_access_token'
+const REFRESH_TOKEN_KEY = 'xianfupu_refresh_token'
 const USER_KEY = 'xianfupu_user_profile'
 
 // 微信开发者工具与 Java 服务运行在同一台电脑时使用此地址。
@@ -23,6 +24,7 @@ module.exports = {
   API_BASE_URL_KEY,
   DEFAULT_API_BASE_URL,
   TOKEN_KEY,
+  REFRESH_TOKEN_KEY,
   USER_KEY,
   getApiBaseUrl,
   setApiBaseUrl

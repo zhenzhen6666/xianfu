@@ -3,6 +3,7 @@ package com.xianfupu.shop.order;
 import com.xianfupu.shop.catalog.CatalogService;
 import com.xianfupu.shop.common.BusinessException;
 import com.xianfupu.shop.user.AddressService;
+import com.xianfupu.shop.monitoring.MonitoringService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -30,15 +32,18 @@ public class OrderService {
     private final CatalogService catalogService;
     private final ApplicationEventPublisher eventPublisher;
     private final int paymentTimeoutMinutes;
+    private final MonitoringService monitoring;
 
     public OrderService(JdbcClient jdbc, JdbcTemplate jdbcTemplate, AddressService addressService,
                         CatalogService catalogService, ApplicationEventPublisher eventPublisher,
+                        MonitoringService monitoring,
                         @Value("${app.order.payment-timeout-minutes:15}") int paymentTimeoutMinutes) {
         this.jdbc = jdbc;
         this.jdbcTemplate = jdbcTemplate;
         this.addressService = addressService;
         this.catalogService = catalogService;
         this.eventPublisher = eventPublisher;
+        this.monitoring = monitoring;
         this.paymentTimeoutMinutes = paymentTimeoutMinutes;
     }
 
@@ -48,6 +53,16 @@ public class OrderService {
 
     @Transactional
     public OrderDetail create(long userId, OrderCommand command) {
+        jdbc.sql("SELECT id FROM users WHERE id = :userId FOR UPDATE")
+                .param("userId", userId).query(Long.class).single();
+        OrderDetail existing = jdbc.sql("""
+                SELECT order_no FROM shop_orders
+                WHERE user_id = :userId AND idempotency_key = :key
+                """).param("userId", userId).param("key", command.idempotencyKey())
+                .query(String.class).optional().map(orderNo -> detail(userId, orderNo)).orElse(null);
+        if (existing != null) {
+            return existing;
+        }
         OrderPreview preview = calculate(userId, command, true);
         String orderNo = nextOrderNo();
         LocalDateTime deadline = LocalDateTime.now().plusMinutes(paymentTimeoutMinutes);
@@ -57,8 +72,8 @@ public class OrderService {
             PreparedStatement ps = connection.prepareStatement("""
                     INSERT INTO shop_orders(order_no, user_id, address_id, status, subtotal, delivery_fee,
                         coupon_discount, member_discount, points_used, points_discount, pay_amount,
-                        receiver_name, receiver_mobile, receiver_address, note, pay_deadline)
-                    VALUES (?, ?, ?, 'WAIT_PAY', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        receiver_name, receiver_mobile, receiver_address, note, pay_deadline, idempotency_key)
+                    VALUES (?, ?, ?, 'WAIT_PAY', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, new String[]{"id"});
             int i = 1;
             ps.setString(i++, orderNo);
@@ -75,7 +90,8 @@ public class OrderService {
             ps.setString(i++, address.phone());
             ps.setString(i++, address.detail());
             ps.setString(i++, command.note());
-            ps.setObject(i, deadline);
+            ps.setObject(i++, deadline);
+            ps.setString(i, command.idempotencyKey());
             return ps;
         }, keyHolder);
         long orderId = keyHolder.getKey().longValue();
@@ -127,15 +143,18 @@ public class OrderService {
     public List<OrderSummary> list(long userId, String status, int page, int size) {
         int safePage = Math.max(0, page);
         int safeSize = Math.min(50, Math.max(1, size));
+        boolean fulfilling = "FULFILLING".equalsIgnoreCase(status);
         String condition = status == null || status.isBlank() || "ALL".equalsIgnoreCase(status)
-                ? "" : " AND status = :status";
+                ? "" : fulfilling
+                ? " AND status IN ('PAID','ACCEPTED','PREPARING','SHIPPING','DELIVERED')"
+                : " AND status = :status";
         JdbcClient.StatementSpec query = jdbc.sql("""
                 SELECT order_no, status, subtotal, delivery_fee, coupon_discount, points_discount,
                        pay_amount, created_at, pay_deadline, paid_at, completed_at
                 FROM shop_orders WHERE user_id = :userId
                 """ + condition + " ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
                 .param("userId", userId).param("limit", safeSize).param("offset", safePage * safeSize);
-        if (!condition.isBlank()) {
+        if (!condition.isBlank() && !fulfilling) {
             query = query.param("status", normalizeStatus(status));
         }
         return query.query(OrderSummary.class).list();
@@ -145,7 +164,8 @@ public class OrderService {
         OrderRow order = jdbc.sql("""
                 SELECT id, order_no, status, subtotal, delivery_fee, coupon_discount, member_discount,
                        points_used, points_discount, pay_amount, receiver_name, receiver_mobile,
-                       receiver_address, note, pay_deadline, paid_at, shipped_at, completed_at,
+                       receiver_address, note, pay_deadline, paid_at, accepted_at, preparing_at,
+                       shipped_at, delivered_at, completed_at,
                        cancelled_at, cancel_reason, created_at
                 FROM shop_orders WHERE order_no = :orderNo AND user_id = :userId
                 """).param("orderNo", orderNo).param("userId", userId).query(OrderRow.class).optional()
@@ -157,7 +177,8 @@ public class OrderService {
         OrderRow order = jdbc.sql("""
                 SELECT id, order_no, status, subtotal, delivery_fee, coupon_discount, member_discount,
                        points_used, points_discount, pay_amount, receiver_name, receiver_mobile,
-                       receiver_address, note, pay_deadline, paid_at, shipped_at, completed_at,
+                       receiver_address, note, pay_deadline, paid_at, accepted_at, preparing_at,
+                       shipped_at, delivered_at, completed_at,
                        cancelled_at, cancel_reason, created_at
                 FROM shop_orders WHERE order_no = :orderNo
                 """).param("orderNo", orderNo).query(OrderRow.class).optional()
@@ -175,12 +196,13 @@ public class OrderService {
     @Transactional
     public OrderDetail confirm(long userId, String orderNo) {
         OrderIdentity order = ownedOrderForUpdate(userId, orderNo);
-        if (!"SHIPPING".equals(order.status())) {
+        if (!List.of("SHIPPING", "DELIVERED").contains(order.status())) {
             throw BusinessException.conflict("ORDER_STATUS_INVALID", "当前订单不能确认收货");
         }
         int updated = jdbc.sql("""
                 UPDATE shop_orders SET status = 'COMPLETED', completed_at = CURRENT_TIMESTAMP,
-                    updated_at = CURRENT_TIMESTAMP WHERE id = :id AND status = 'SHIPPING'
+                    delivered_at = COALESCE(delivered_at, CURRENT_TIMESTAMP),
+                    updated_at = CURRENT_TIMESTAMP WHERE id = :id AND status IN ('SHIPPING','DELIVERED')
                 """).param("id", order.id()).update();
         if (updated == 1) {
             BigDecimal multiplier = jdbc.sql("""
@@ -220,7 +242,7 @@ public class OrderService {
     @Transactional
     public void markPaid(long orderId) {
         int updated = jdbc.sql("""
-                UPDATE shop_orders SET status = 'SHIPPING', paid_at = CURRENT_TIMESTAMP,
+                UPDATE shop_orders SET status = 'PAID', paid_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP WHERE id = :id AND status = 'WAIT_PAY'
                 """).param("id", orderId).update();
         if (updated != 1) {
@@ -231,6 +253,17 @@ public class OrderService {
                     SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi WHERE oi.order_id = :orderId AND oi.product_id = p.id
                 ) WHERE EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = :orderId AND oi.product_id = p.id)
                 """).param("orderId", orderId).update();
+        List<LowStockProduct> lowStock = jdbc.sql("""
+                SELECT p.product_code, p.name, p.stock FROM products p
+                WHERE p.stock <= 5 AND EXISTS (
+                    SELECT 1 FROM order_items oi WHERE oi.order_id = :orderId AND oi.product_id = p.id
+                )
+                """).param("orderId", orderId).query(LowStockProduct.class).list();
+        for (LowStockProduct product : lowStock) {
+            monitoring.alertOnce("LOW_STOCK", product.stock() == 0 ? "CRITICAL" : "WARNING",
+                    "商品库存不足", product.name() + " 当前库存仅剩 " + product.stock(),
+                    "PRODUCT", product.productCode());
+        }
         jdbc.sql("""
                 INSERT INTO admin_order_notifications(order_id, status)
                 VALUES (:orderId, 'UNREAD')
@@ -358,7 +391,8 @@ public class OrderService {
                 order.subtotal(), order.deliveryFee(), order.couponDiscount(), order.memberDiscount(),
                 order.pointsUsed(), order.pointsDiscount(), order.payAmount(), order.receiverName(),
                 order.receiverMobile(), order.receiverAddress(), order.note(), order.payDeadline(), order.paidAt(),
-                order.shippedAt(), order.completedAt(), order.cancelledAt(), order.cancelReason(), order.createdAt());
+                order.acceptedAt(), order.preparingAt(), order.shippedAt(), order.deliveredAt(),
+                order.completedAt(), order.cancelledAt(), order.cancelReason(), order.createdAt());
     }
 
     private void upgradeMember(long userId) {
@@ -390,7 +424,11 @@ public class OrderService {
     private String normalizeStatus(String status) {
         return switch (status.toLowerCase()) {
             case "wait_pay" -> "WAIT_PAY";
+            case "paid" -> "PAID";
+            case "accepted" -> "ACCEPTED";
+            case "preparing" -> "PREPARING";
             case "shipping" -> "SHIPPING";
+            case "delivered" -> "DELIVERED";
             case "complete", "completed" -> "COMPLETED";
             case "cancel", "cancelled" -> "CANCELLED";
             default -> status.toUpperCase();
@@ -400,7 +438,11 @@ public class OrderService {
     private String statusText(String status) {
         return switch (status) {
             case "WAIT_PAY" -> "待支付";
-            case "SHIPPING" -> "待配送";
+            case "PAID" -> "已支付";
+            case "ACCEPTED" -> "已接单";
+            case "PREPARING" -> "备货中";
+            case "SHIPPING" -> "配送中";
+            case "DELIVERED" -> "已送达";
             case "COMPLETED" -> "已完成";
             case "CANCELLED" -> "已取消";
             case "REFUNDED" -> "已退款";
@@ -412,7 +454,11 @@ public class OrderService {
         return amount.setScale(2, RoundingMode.HALF_UP);
     }
 
-    public record OrderCommand(long addressId, Long userCouponId, Integer pointsToUse, String note) {
+    public record OrderCommand(long addressId, Long userCouponId, Integer pointsToUse, String note,
+                               String idempotencyKey) {
+        public OrderCommand(long addressId, Long userCouponId, Integer pointsToUse, String note) {
+            this(addressId, userCouponId, pointsToUse, note, UUID.randomUUID().toString());
+        }
     }
 
     public record CheckoutItem(long productId, String id, String name, String spec, String image,
@@ -441,7 +487,8 @@ public class OrderService {
                               BigDecimal memberDiscount, int pointsUsed, BigDecimal pointsDiscount,
                               BigDecimal payAmount, String receiverName, String receiverMobile,
                               String receiverAddress, String note, LocalDateTime payDeadline,
-                              LocalDateTime paidAt, LocalDateTime shippedAt, LocalDateTime completedAt,
+                              LocalDateTime paidAt, LocalDateTime acceptedAt, LocalDateTime preparingAt,
+                              LocalDateTime shippedAt, LocalDateTime deliveredAt, LocalDateTime completedAt,
                               LocalDateTime cancelledAt, String cancelReason, LocalDateTime createdAt) {
     }
 
@@ -454,11 +501,15 @@ public class OrderService {
     private record RestoreItem(long productId, int quantity) {
     }
 
+    private record LowStockProduct(String productCode, String name, int stock) {
+    }
+
     private record OrderRow(long id, String orderNo, String status, BigDecimal subtotal,
                             BigDecimal deliveryFee, BigDecimal couponDiscount, BigDecimal memberDiscount,
                             int pointsUsed, BigDecimal pointsDiscount, BigDecimal payAmount,
                             String receiverName, String receiverMobile, String receiverAddress, String note,
-                            LocalDateTime payDeadline, LocalDateTime paidAt, LocalDateTime shippedAt,
+                            LocalDateTime payDeadline, LocalDateTime paidAt, LocalDateTime acceptedAt,
+                            LocalDateTime preparingAt, LocalDateTime shippedAt, LocalDateTime deliveredAt,
                             LocalDateTime completedAt, LocalDateTime cancelledAt, String cancelReason,
                             LocalDateTime createdAt) {
     }

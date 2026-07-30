@@ -52,7 +52,7 @@ async function openOrderFromQuery() {
   await openDetail(row)
 }
 async function updateStatus(row: Order, target: string) {
-  const labels: Record<string, string> = { SHIPPING: '开始配送', COMPLETED: '完成订单', CANCELLED: '取消订单' }
+  const labels: Record<string, string> = { ACCEPTED: '接单', PREPARING: '开始备货', SHIPPING: '开始配送', DELIVERED: '标记送达', COMPLETED: '完成订单', CANCELLED: '取消订单' }
   await ElMessageBox.confirm(`确定要对订单 ${row.orderNo} 执行“${labels[target]}”吗？`, '确认订单操作', { type: target === 'CANCELLED' ? 'warning' : 'info' })
   await adminApi.updateOrderStatus(row.orderNo, target)
   ElMessage.success(`订单已${labels[target]}`); await load()
@@ -73,7 +73,7 @@ watch(() => route.query.orderNo, openOrderFromQuery)
     <PageToolbar title="订单列表" description="处理待配送订单、确认履约状态并发起退款"><el-button :icon="Refresh" @click="load">刷新</el-button></PageToolbar>
     <div class="filter-bar">
       <el-input v-model="keyword" :prefix-icon="Search" clearable placeholder="搜索订单、顾客或手机号" class="search-input" />
-      <el-select v-model="status" style="width: 160px" @change="load"><el-option label="全部状态" value="ALL" /><el-option label="待支付" value="WAIT_PAY" /><el-option label="待配送" value="SHIPPING" /><el-option label="已完成" value="COMPLETED" /><el-option label="已取消" value="CANCELLED" /><el-option label="已退款" value="REFUNDED" /></el-select>
+      <el-select v-model="status" style="width: 160px" @change="load"><el-option label="全部状态" value="ALL" /><el-option label="待支付" value="WAIT_PAY" /><el-option label="已支付" value="PAID" /><el-option label="已接单" value="ACCEPTED" /><el-option label="备货中" value="PREPARING" /><el-option label="配送中" value="SHIPPING" /><el-option label="已送达" value="DELIVERED" /><el-option label="已完成" value="COMPLETED" /><el-option label="已取消" value="CANCELLED" /><el-option label="已退款" value="REFUNDED" /></el-select>
       <span class="result-count">共 {{ filtered.length }} 笔订单</span>
     </div>
     <article class="content-card table-card" v-loading="loading">
@@ -86,9 +86,13 @@ watch(() => route.query.orderNo, openOrderFromQuery)
         <el-table-column label="操作" width="290" fixed="right">
           <template #default="{ row }">
             <el-button size="small" plain type="primary" :icon="View" @click="openDetail(row)">查看详情</el-button>
-            <el-button v-if="row.status === 'SHIPPING'" link type="success" @click="updateStatus(row, 'COMPLETED')">确认完成</el-button>
+            <el-button v-if="row.status === 'PAID'" link type="success" @click="updateStatus(row, 'ACCEPTED')">接单</el-button>
+            <el-button v-if="row.status === 'ACCEPTED'" link type="success" @click="updateStatus(row, 'PREPARING')">开始备货</el-button>
+            <el-button v-if="row.status === 'PREPARING'" link type="success" @click="updateStatus(row, 'SHIPPING')">开始配送</el-button>
+            <el-button v-if="row.status === 'SHIPPING'" link type="success" @click="updateStatus(row, 'DELIVERED')">标记送达</el-button>
+            <el-button v-if="row.status === 'DELIVERED'" link type="success" @click="updateStatus(row, 'COMPLETED')">确认完成</el-button>
             <el-button v-if="row.status === 'WAIT_PAY'" link type="danger" @click="updateStatus(row, 'CANCELLED')">取消</el-button>
-            <el-button v-if="['SHIPPING', 'COMPLETED'].includes(row.status)" link type="warning" @click="openRefund(row)">退款</el-button>
+            <el-button v-if="['PAID','ACCEPTED','PREPARING','SHIPPING','DELIVERED','COMPLETED'].includes(row.status)" link type="warning" @click="openRefund(row)">退款</el-button>
             <span v-if="['CANCELLED', 'REFUNDED'].includes(row.status)" class="muted-text">无需操作</span>
           </template>
         </el-table-column>
@@ -128,7 +132,10 @@ watch(() => route.query.orderNo, openOrderFromQuery)
               <el-descriptions-item label="创建时间">{{ dateTime(detail.createdAt) }}</el-descriptions-item>
               <el-descriptions-item label="支付截止">{{ dateTime(detail.payDeadline) }}</el-descriptions-item>
               <el-descriptions-item label="支付时间">{{ dateTime(detail.paidAt) }}</el-descriptions-item>
+              <el-descriptions-item label="接单时间">{{ dateTime(detail.acceptedAt) }}</el-descriptions-item>
+              <el-descriptions-item label="备货时间">{{ dateTime(detail.preparingAt) }}</el-descriptions-item>
               <el-descriptions-item label="配送时间">{{ dateTime(detail.shippedAt) }}</el-descriptions-item>
+              <el-descriptions-item label="送达时间">{{ dateTime(detail.deliveredAt) }}</el-descriptions-item>
               <el-descriptions-item label="完成时间">{{ dateTime(detail.completedAt) }}</el-descriptions-item>
               <el-descriptions-item v-if="detail.cancelledAt" label="取消时间">{{ dateTime(detail.cancelledAt) }}</el-descriptions-item>
               <el-descriptions-item v-if="detail.cancelReason" label="取消原因">{{ detail.cancelReason }}</el-descriptions-item>

@@ -4,6 +4,10 @@
     <view class="user-info"><view>{{user.nickname}}</view><text bindtap="goMember">{{user.memberLevelName}} <text class="strong">›</text></text></view>
     <button open-type="share">↗</button>
   </view>
+  <view class="card mobile-bind" wx:if="{{!user.mobile}}">
+    <text>绑定微信手机号后可接收管理员发放的优惠券</text>
+    <button open-type="getPhoneNumber" bindgetphonenumber="bindMobile">立即绑定</button>
+  </view>
 
   <view class="member-card" bindtap="goMember">
     <view class="member-top between"><view><text class="crown">♛</text><text>鲜福{{user.memberLevelName}}</text></view><text>会员中心 ›</text></view>
@@ -15,9 +19,9 @@
     <view class="orders-title between"><text>我的订单</text><text data-status="all" bindtap="goOrders">全部订单 ›</text></view>
     <view class="order-shortcuts">
       <view data-status="wait_pay" bindtap="goOrders"><text>付</text><text class="strong">待支付</text></view>
-      <view data-status="shipping" bindtap="goOrders"><text>送</text><text class="strong">待配送</text></view>
+      <view data-status="fulfilling" bindtap="goOrders"><text>送</text><text class="strong">履约中</text></view>
       <view data-status="complete" bindtap="goOrders"><text>收</text><text class="strong">已完成</text></view>
-      <view data-status="all" bindtap="goOrders"><text>售</text><text class="strong">退款/售后</text></view>
+      <view bindtap="goAfterSales"><text>售</text><text class="strong">退款/售后</text></view>
     </view>
   </view>
 

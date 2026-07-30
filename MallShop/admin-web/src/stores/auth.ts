@@ -21,13 +21,17 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = result.accessToken
     user.value = result.user
     localStorage.setItem('xianfupu_admin_token', result.accessToken)
+    localStorage.setItem('xianfupu_admin_refresh_token', result.refreshToken)
     localStorage.setItem('xianfupu_admin_user', JSON.stringify(result.user))
   }
 
   function logout() {
+    const refreshToken = localStorage.getItem('xianfupu_admin_refresh_token')
+    if (refreshToken) adminApi.logout(refreshToken).catch(() => undefined)
     token.value = ''
     user.value = null
     localStorage.removeItem('xianfupu_admin_token')
+    localStorage.removeItem('xianfupu_admin_refresh_token')
     localStorage.removeItem('xianfupu_admin_user')
   }
 

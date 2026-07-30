@@ -4,6 +4,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import com.xianfupu.shop.common.BusinessException;
 import com.xianfupu.shop.order.OrderService;
+import com.xianfupu.shop.monitoring.MonitoringService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -31,9 +32,11 @@ public class PaymentService {
     private final OrderService orderService;
     private final Map<String, PaymentProvider> providers;
     private final String mockCallbackSecret;
+    private final MonitoringService monitoring;
 
     public PaymentService(JdbcClient jdbc, JdbcTemplate jdbcTemplate, ObjectMapper objectMapper,
                           OrderService orderService, List<PaymentProvider> providers,
+                          MonitoringService monitoring,
                           @Value("${app.payment.mock-callback-secret:local-mock-callback}") String mockCallbackSecret) {
         this.jdbc = jdbc;
         this.jdbcTemplate = jdbcTemplate;
@@ -41,6 +44,7 @@ public class PaymentService {
         this.orderService = orderService;
         this.providers = providers.stream().collect(Collectors.toMap(PaymentProvider::channel, Function.identity()));
         this.mockCallbackSecret = mockCallbackSecret;
+        this.monitoring = monitoring;
     }
 
     @Transactional
@@ -103,6 +107,11 @@ public class PaymentService {
                                     String callbackSecret) {
         if (!MessageDigest.isEqual(mockCallbackSecret.getBytes(StandardCharsets.UTF_8),
                 callbackSecret.getBytes(StandardCharsets.UTF_8))) {
+            monitoring.paymentCallback(paymentNo, "MOCK", false, false, providerTradeNo,
+                    "INVALID_CALLBACK_SIGNATURE", "支付回调签名无效",
+                    json(Map.of("success", success)));
+            monitoring.alert("PAYMENT_CALLBACK", "CRITICAL", "支付回调签名异常",
+                    "流水 " + paymentNo + " 的回调签名校验失败", "PAYMENT", paymentNo);
             throw BusinessException.forbidden("INVALID_CALLBACK_SIGNATURE", "支付回调签名无效");
         }
         PaymentRow payment = jdbc.sql("""
@@ -127,7 +136,13 @@ public class PaymentService {
                 .param("success", success).param("id", payment.id()).update();
         if (success) {
             orderService.markPaid(payment.orderId());
+        } else {
+            monitoring.alert("PAYMENT_CALLBACK", "WARNING", "支付失败",
+                    "支付流水 " + paymentNo + " 回调结果为失败", "PAYMENT", paymentNo);
         }
+        monitoring.paymentCallback(paymentNo, payment.channel(), success, true, providerTradeNo,
+                targetStatus, success ? "回调处理成功" : "支付失败",
+                json(Map.of("success", success)));
         PaymentRow updated = jdbc.sql("""
                 SELECT id, payment_no, order_id, channel, status, amount, provider_trade_no, created_at
                 FROM payments WHERE id = :id
@@ -167,7 +182,13 @@ public class PaymentService {
         if (provider == null) {
             throw BusinessException.conflict("PAYMENT_CHANNEL_UNAVAILABLE", "原支付渠道当前不可用");
         }
-        provider.refund(payment.paymentNo(), amount, reason);
+        try {
+            provider.refund(payment.paymentNo(), amount, reason);
+        } catch (RuntimeException ex) {
+            monitoring.alert("REFUND_FAILED", "CRITICAL", "退款执行失败",
+                    "订单 " + orderNo + " 退款失败：" + ex.getMessage(), "ORDER", orderNo);
+            throw ex;
+        }
         BigDecimal refunded = alreadyRefunded.add(amount);
         String status = refunded.compareTo(payment.amount()) == 0 ? "REFUNDED" : "PARTIAL_REFUND";
         jdbc.sql("""

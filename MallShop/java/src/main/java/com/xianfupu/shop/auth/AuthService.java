@@ -3,6 +3,7 @@ package com.xianfupu.shop.auth;
 import tools.jackson.databind.JsonNode;
 import com.xianfupu.shop.common.BusinessException;
 import com.xianfupu.shop.security.JwtService;
+import com.xianfupu.shop.security.AuthSessionService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -18,6 +19,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.sql.PreparedStatement;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,13 +28,17 @@ public class AuthService {
     private final JdbcClient jdbc;
     private final JdbcTemplate jdbcTemplate;
     private final JwtService jwtService;
+    private final AuthSessionService authSessionService;
     private final RestClient restClient;
     private final String appId;
     private final String appSecret;
     private final boolean devLoginEnabled;
     private final String devAdminSecret;
+    private volatile String wechatAccessToken;
+    private volatile long wechatAccessTokenExpiresAt;
 
     public AuthService(JdbcClient jdbc, JdbcTemplate jdbcTemplate, JwtService jwtService,
+                       AuthSessionService authSessionService,
                        @Value("${app.wechat.app-id:}") String appId,
                        @Value("${app.wechat.app-secret:}") String appSecret,
                        @Value("${app.dev-login-enabled:false}") boolean devLoginEnabled,
@@ -40,6 +46,7 @@ public class AuthService {
         this.jdbc = jdbc;
         this.jdbcTemplate = jdbcTemplate;
         this.jwtService = jwtService;
+        this.authSessionService = authSessionService;
         this.restClient = RestClient.create();
         this.appId = appId;
         this.appSecret = appSecret;
@@ -67,7 +74,7 @@ public class AuthService {
         UserProfile user = findByOpenid(result.path("openid").asText())
                 .orElseGet(() -> createUser(result.path("openid").asText(), null, nickname, avatarUrl, "USER"));
         ensureActive(user);
-        return result(user);
+        return result(user, null, null);
     }
 
     @Transactional
@@ -77,7 +84,7 @@ public class AuthService {
                 .flatMap(this::findByMobile)
                 .orElseGet(() -> createUser("dev:" + UUID.randomUUID(), mobile, nickname, null, "USER"));
         ensureActive(user);
-        return result(user);
+        return result(user, null, null);
     }
 
     @Transactional
@@ -94,13 +101,58 @@ public class AuthService {
                     .param("id", user.id()).update();
             user = findById(user.id());
         }
-        return result(user);
+        return result(user, null, null);
     }
 
     public UserProfile findById(long userId) {
         return jdbc.sql(profileSql() + " WHERE u.id = :id")
                 .param("id", userId).query(UserProfile.class).optional()
                 .orElseThrow(() -> BusinessException.notFound("USER_NOT_FOUND", "用户不存在"));
+    }
+
+    @Transactional
+    public UserProfile bindWechatMobile(long userId, String phoneCode) {
+        if (appId.isBlank() || appSecret.isBlank()) {
+            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "WECHAT_NOT_CONFIGURED",
+                    "尚未配置微信小程序 APPID 和密钥");
+        }
+        JsonNode result = restClient.post()
+                .uri("https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token="
+                        + wechatAccessToken())
+                .body(java.util.Map.of("code", phoneCode))
+                .retrieve().body(JsonNode.class);
+        String mobile = result == null ? "" : result.path("phone_info").path("purePhoneNumber").asText();
+        if (mobile.isBlank()) {
+            String message = result == null ? "手机号获取失败" : result.path("errmsg").asText("手机号获取失败");
+            throw BusinessException.badRequest("WECHAT_PHONE_FAILED", message);
+        }
+        long occupied = jdbc.sql("SELECT COUNT(*) FROM users WHERE mobile = :mobile AND id <> :userId")
+                .param("mobile", mobile).param("userId", userId).query(Long.class).single();
+        if (occupied > 0) {
+            throw BusinessException.conflict("MOBILE_ALREADY_BOUND", "该手机号已绑定其他账号");
+        }
+        jdbc.sql("UPDATE users SET mobile = :mobile, updated_at = CURRENT_TIMESTAMP WHERE id = :userId")
+                .param("mobile", mobile).param("userId", userId).update();
+        return findById(userId);
+    }
+
+    private synchronized String wechatAccessToken() {
+        long now = System.currentTimeMillis() / 1000;
+        if (wechatAccessToken != null && now < wechatAccessTokenExpiresAt - 120) {
+            return wechatAccessToken;
+        }
+        JsonNode result = restClient.post().uri("https://api.weixin.qq.com/cgi-bin/stable_token")
+                .body(java.util.Map.of("grant_type", "client_credential", "appid", appId,
+                        "secret", appSecret, "force_refresh", false))
+                .retrieve().body(JsonNode.class);
+        String token = result == null ? "" : result.path("access_token").asText();
+        if (token.isBlank()) {
+            String message = result == null ? "微信访问令牌获取失败" : result.path("errmsg").asText("微信访问令牌获取失败");
+            throw new BusinessException(HttpStatus.BAD_GATEWAY, "WECHAT_TOKEN_FAILED", message);
+        }
+        wechatAccessToken = token;
+        wechatAccessTokenExpiresAt = now + result.path("expires_in").asLong(7200);
+        return token;
     }
 
     private Optional<UserProfile> findByOpenid(String openid) {
@@ -160,8 +212,24 @@ public class AuthService {
         }
     }
 
-    private LoginResult result(UserProfile user) {
-        return new LoginResult(jwtService.issue(user.id(), user.role()), "Bearer", user);
+    public LoginResult refresh(String refreshToken, String ipAddress, String userAgent) {
+        AuthSessionService.SessionTokens tokens = authSessionService.refresh(refreshToken, ipAddress, userAgent);
+        UserProfile user = findById(jwtService.verify(tokens.accessToken()).userId());
+        ensureActive(user);
+        return result(tokens, user);
+    }
+
+    public void logout(String refreshToken) {
+        authSessionService.revokeByRefreshToken(refreshToken);
+    }
+
+    private LoginResult result(UserProfile user, String ipAddress, String userAgent) {
+        return result(authSessionService.create(user.id(), user.role(), ipAddress, userAgent), user);
+    }
+
+    private LoginResult result(AuthSessionService.SessionTokens tokens, UserProfile user) {
+        return new LoginResult(tokens.accessToken(), tokens.refreshToken(), "Bearer",
+                tokens.sessionId(), tokens.accessExpiresAt(), tokens.refreshExpiresAt(), user);
     }
 
     private String profileSql() {
@@ -173,7 +241,9 @@ public class AuthService {
                 """;
     }
 
-    public record LoginResult(String accessToken, String tokenType, UserProfile user) {
+    public record LoginResult(String accessToken, String refreshToken, String tokenType, String sessionId,
+                              java.time.Instant accessExpiresAt, LocalDateTime refreshExpiresAt,
+                              UserProfile user) {
     }
 
     public record UserProfile(long id, String nickname, String avatarUrl, String mobile, String role,

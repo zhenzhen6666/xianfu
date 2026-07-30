@@ -1,0 +1,2 @@
+@import "../assets.wxss";
+.tabs{display:flex;margin-bottom:20rpx;background:#fff;border-radius:20rpx}.tabs text{flex:1;padding:24rpx 0;text-align:center;color:#768178}.tabs .active{color:#168a51;font-weight:700;border-bottom:4rpx solid #168a51}.coupon{display:flex;align-items:center;gap:22rpx}.amount{min-width:150rpx;color:#ef6a42;font-size:48rpx;font-weight:800}.amount text{font-size:24rpx}.grow{display:flex;flex:1;flex-direction:column;gap:9rpx}.state{color:#168a51;font-size:24rpx}.disabled{filter:grayscale(1);opacity:.58}

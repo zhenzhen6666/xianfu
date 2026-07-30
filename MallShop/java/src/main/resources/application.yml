@@ -37,7 +37,8 @@ management:
 app:
   jwt:
     secret: ${JWT_SECRET:change-this-local-secret-before-production-please-32bytes}
-    expire-hours: ${JWT_EXPIRE_HOURS:168}
+    expire-hours: ${JWT_EXPIRE_HOURS:2}
+    refresh-expire-days: ${JWT_REFRESH_EXPIRE_DAYS:30}
   wechat:
     app-id: ${WECHAT_APP_ID:}
     app-secret: ${WECHAT_APP_SECRET:}

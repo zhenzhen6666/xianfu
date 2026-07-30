@@ -1,0 +1,2 @@
+@import "../assets.wxss";
+.points-head{display:flex;flex-direction:column;gap:12rpx;margin-bottom:24rpx;padding:42rpx;color:#fff;background:linear-gradient(135deg,#168a51,#43aa72);border-radius:28rpx}.points-head strong{font-size:68rpx}.points-head text{font-size:25rpx;opacity:.88}.record{display:flex;align-items:center}.grow{display:flex;flex:1;flex-direction:column;gap:8rpx}.plus{color:#168a51;font-size:34rpx;font-weight:700}.minus{color:#e86146;font-size:34rpx;font-weight:700}

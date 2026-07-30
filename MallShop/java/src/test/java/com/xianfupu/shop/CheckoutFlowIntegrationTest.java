@@ -9,6 +9,8 @@ import com.xianfupu.shop.order.OrderService;
 import com.xianfupu.shop.payment.PaymentService;
 import com.xianfupu.shop.user.AddressService;
 import com.xianfupu.shop.user.UserBenefitService;
+import com.xianfupu.shop.security.AuthSessionService;
+import com.xianfupu.shop.security.JwtService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -37,6 +39,10 @@ class CheckoutFlowIntegrationTest {
     AdminService adminService;
     @Autowired
     AdminOrderNotificationService orderNotificationService;
+    @Autowired
+    AuthSessionService authSessionService;
+    @Autowired
+    JwtService jwtService;
 
     @Test
     void completesCheckoutPaymentAndMemberRewardFlow() {
@@ -61,6 +67,7 @@ class CheckoutFlowIntegrationTest {
 
         OrderService.OrderDetail order = orderService.create(userId, command);
         assertThat(order.status()).isEqualTo("WAIT_PAY");
+        assertThat(orderService.create(userId, command).orderNo()).isEqualTo(order.orderNo());
         assertThat(cartService.get(userId).items()).isEmpty();
 
         OrderService.OrderDetail adminDetail = adminService.order(order.orderNo());
@@ -72,7 +79,7 @@ class CheckoutFlowIntegrationTest {
         PaymentService.PaymentView payment = paymentService.create(userId, order.orderNo(), "MOCK");
         assertThat(payment.status()).isEqualTo("PENDING");
         paymentService.mockCallback(payment.paymentNo(), true, "LOCAL-TEST-001", "local-mock-callback");
-        assertThat(orderService.detail(userId, order.orderNo()).status()).isEqualTo("SHIPPING");
+        assertThat(orderService.detail(userId, order.orderNo()).status()).isEqualTo("PAID");
         assertThat(orderNotificationService.unreadCount().count()).isEqualTo(1);
         assertThat(orderNotificationService.activeNotifications())
                 .anyMatch(item -> item.orderNo().equals(order.orderNo())
@@ -80,14 +87,38 @@ class CheckoutFlowIntegrationTest {
         assertThat(orderNotificationService.markRead(order.orderNo()).status()).isEqualTo("READ");
         assertThat(orderNotificationService.unreadCount().count()).isZero();
 
-        OrderService.OrderDetail completed = adminService.updateOrderStatus(
-                authService.devAdminLogin("TestAdminSecret", "订单管理员").user().id(),
-                order.orderNo(), "COMPLETED");
+        long adminId = authService.devAdminLogin("TestAdminSecret", "订单管理员").user().id();
+        assertThat(adminService.updateOrderStatus(adminId, order.orderNo(), "ACCEPTED").status())
+                .isEqualTo("ACCEPTED");
+        assertThat(adminService.updateOrderStatus(adminId, order.orderNo(), "PREPARING").status())
+                .isEqualTo("PREPARING");
+        assertThat(adminService.updateOrderStatus(adminId, order.orderNo(), "SHIPPING").status())
+                .isEqualTo("SHIPPING");
+        assertThat(adminService.updateOrderStatus(adminId, order.orderNo(), "DELIVERED").status())
+                .isEqualTo("DELIVERED");
+        OrderService.OrderDetail completed = adminService.updateOrderStatus(adminId, order.orderNo(), "COMPLETED");
         assertThat(completed.status()).isEqualTo("COMPLETED");
         assertThat(orderNotificationService.activeNotifications())
                 .noneMatch(item -> item.orderNo().equals(order.orderNo()));
         assertThat(authService.findById(userId).points()).isGreaterThanOrEqualTo(26);
         assertThat(authService.findById(userId).totalSpent()).isEqualByComparingTo("26.19");
+    }
+
+    @Test
+    void rotatesRefreshTokenAndRevokesSessionOnLogout() {
+        AuthService.LoginResult login = authService.devLogin("13700009999", "会话测试");
+        JwtService.TokenClaims initialClaims = jwtService.verify(login.accessToken());
+        assertThat(authSessionService.isActive(initialClaims.sessionId(), initialClaims.userId(), "USER")).isTrue();
+
+        AuthService.LoginResult refreshed = authService.refresh(login.refreshToken(), "127.0.0.1", "JUnit");
+        assertThat(refreshed.refreshToken()).isNotEqualTo(login.refreshToken());
+        assertThatThrownBy(() -> authService.refresh(login.refreshToken(), null, null))
+                .isInstanceOf(BusinessException.class);
+
+        authService.logout(refreshed.refreshToken());
+        JwtService.TokenClaims refreshedClaims = jwtService.verify(refreshed.accessToken());
+        assertThat(authSessionService.isActive(
+                refreshedClaims.sessionId(), refreshedClaims.userId(), "USER")).isFalse();
     }
 
     @Test

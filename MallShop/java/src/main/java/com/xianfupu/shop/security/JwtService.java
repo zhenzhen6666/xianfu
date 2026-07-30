@@ -34,13 +34,14 @@ public class JwtService {
         this.expireHours = expireHours;
     }
 
-    public String issue(long userId, String role) {
+    public String issue(long userId, String role, String sessionId) {
         try {
             String header = encodeJson(Map.of("alg", "HS256", "typ", "JWT"));
             Instant now = Instant.now();
             Map<String, Object> claims = new LinkedHashMap<>();
             claims.put("sub", Long.toString(userId));
             claims.put("role", role);
+            claims.put("sid", sessionId);
             claims.put("iat", now.getEpochSecond());
             claims.put("exp", now.plus(expireHours, ChronoUnit.HOURS).getEpochSecond());
             String payload = encodeJson(claims);
@@ -68,7 +69,8 @@ public class JwtService {
             if (Instant.now().getEpochSecond() >= exp) {
                 throw new IllegalArgumentException("Expired token");
             }
-            return new TokenClaims(Long.parseLong((String) claims.get("sub")), (String) claims.get("role"));
+            return new TokenClaims(Long.parseLong((String) claims.get("sub")), (String) claims.get("role"),
+                    (String) claims.get("sid"), exp);
         } catch (Exception ex) {
             throw new IllegalArgumentException("Invalid token", ex);
         }
@@ -84,6 +86,10 @@ public class JwtService {
         return mac.doFinal(value.getBytes(StandardCharsets.UTF_8));
     }
 
-    public record TokenClaims(long userId, String role) {
+    public long expireSeconds() {
+        return expireHours * 3600;
+    }
+
+    public record TokenClaims(long userId, String role, String sessionId, long expiresAt) {
     }
 }

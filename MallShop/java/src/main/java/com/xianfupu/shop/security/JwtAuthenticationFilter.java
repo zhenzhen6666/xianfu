@@ -17,9 +17,11 @@ import java.util.List;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
+    private final AuthSessionService authSessionService;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    public JwtAuthenticationFilter(JwtService jwtService, AuthSessionService authSessionService) {
         this.jwtService = jwtService;
+        this.authSessionService = authSessionService;
     }
 
     @Override
@@ -30,6 +32,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 JwtService.TokenClaims claims = jwtService.verify(authorization.substring(7));
+                if (!authSessionService.isActive(claims.sessionId(), claims.userId(), claims.role())) {
+                    throw new IllegalArgumentException("Session revoked");
+                }
                 var authentication = new UsernamePasswordAuthenticationToken(
                         Long.toString(claims.userId()), null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + claims.role())));

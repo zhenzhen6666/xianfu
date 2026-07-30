@@ -8,9 +8,12 @@ Page({
     note: '', showAddress: false, loading: true, selectedCouponId: null,
     address: { id: 0, name: '鲜福铺用户', phone: '13866686688', detail: '幸福里社区 8 栋 1202 室', distanceKm: 1 },
     addressDraft: { name: '', phone: '', detail: '' },
-    availableCoupons: []
+    availableCoupons: [], idempotencyKey: '', submitting: false
   },
-  onLoad() { this.loadCheckout() },
+  onLoad() {
+    this.setData({ idempotencyKey: `${Date.now()}-${Math.random().toString(36).slice(2)}` })
+    this.loadCheckout()
+  },
 
   addressPayload(address) {
     return {
@@ -67,7 +70,8 @@ Page({
       addressId: this.data.address.id,
       userCouponId: this.data.selectedCouponId || null,
       pointsToUse: this.data.pointsEnabled ? Math.min(250, this.data.pointsBalance) : 0,
-      note: this.data.note
+      note: this.data.note,
+      idempotencyKey: this.data.idempotencyKey
     }
   },
 
@@ -149,9 +153,12 @@ Page({
 
   async submitOrder() {
     if (!this.data.items.length) return wx.showToast({ title: '订单里还没有商品', icon: 'none' })
+    if (this.data.submitting) return
+    this.setData({ submitting: true })
     wx.showLoading({ title: '正在创建订单' })
     try {
       const order = await api.createOrder(this.orderPayload())
+      this.setData({ idempotencyKey: `${Date.now()}-${Math.random().toString(36).slice(2)}` })
       wx.hideLoading()
       wx.showModal({
         title: '本地模拟支付',
@@ -173,6 +180,8 @@ Page({
     } catch (error) {
       wx.hideLoading()
       wx.showToast({ title: error.message, icon: 'none', duration: 3500 })
+    } finally {
+      this.setData({ submitting: false })
     }
   }
 })

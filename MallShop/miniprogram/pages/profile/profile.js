@@ -16,7 +16,7 @@ Page({
       ])
       const menus = [
         { icon: '券', name: '优惠券', value: `${coupons.length} 张`, action: 'coupon' },
-        { icon: '分', name: '积分', value: String(points.balance || 0), action: 'member' },
+        { icon: '分', name: '积分', value: String(points.balance || 0), action: 'points' },
         { icon: '址', name: '收货地址', value: '', action: 'address' },
         { icon: '员', name: '会员中心', value: '', action: 'member' },
         { icon: '藏', name: '商品收藏', value: String(favorites.length), action: 'favorite' },
@@ -35,7 +35,10 @@ Page({
   },
   menuTap(e) {
     const action = e.currentTarget.dataset.action
-    if (action === 'member' || action === 'coupon') return this.goMember()
+    if (action === 'member') return this.goMember()
+    if (action === 'coupon') return wx.navigateTo({ url: '/pages/coupons/coupons' })
+    if (action === 'favorite') return wx.navigateTo({ url: '/pages/favorites/favorites' })
+    if (action === 'points') return wx.navigateTo({ url: '/pages/points/points' })
     if (action === 'service') return wx.showModal({ title: '鲜福铺在线客服', content: '售后咨询：工作日 08:00—21:00\n商家电话：400-888-6699', confirmText: '知道了', showCancel: false, confirmColor: '#168A51' })
     if (action === 'share') return wx.showShareMenu({ withShareTicket: true })
     if (action === 'settings') {
@@ -43,5 +46,15 @@ Page({
     }
     wx.showToast({ title: '功能入口已就绪', icon: 'none' })
   },
+  async bindMobile(e) {
+    if (!e.detail.code) return wx.showToast({ title: '未授权获取手机号', icon: 'none' })
+    try {
+      const user = await api.bindWechatMobile(e.detail.code)
+      wx.setStorageSync('xianfupu_user_profile', user)
+      this.setData({ user })
+      wx.showToast({ title: '手机号绑定成功', icon: 'success' })
+    } catch (error) { wx.showToast({ title: error.message, icon: 'none' }) }
+  },
+  goAfterSales() { wx.navigateTo({ url: '/pages/after-sales/after-sales' }) },
   onShareAppMessage() { return { title: '鲜福铺新人礼，三公里鲜到家', path: '/pages/home/home' } }
 })
