@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi } from '../api/admin'
 import PageToolbar from '../components/PageToolbar.vue'
 import StatusTag from '../components/StatusTag.vue'
@@ -81,6 +81,19 @@ async function toggle(row: Product) {
   await load()
 }
 
+async function removeProduct(row: Product) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除“${row.name}”吗？已有订单记录的商品将无法删除，只能下架。`,
+      '删除商品',
+      { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' },
+    )
+  } catch { return }
+  await adminApi.deleteProduct(row.productCode)
+  ElMessage.success('商品已删除')
+  await load()
+}
+
 async function openSkus(row: Product) {
   skuProduct.value = row
   skus.value = (await adminApi.productSkus(row.productCode)).filter(item => item.enabled !== false)
@@ -127,7 +140,7 @@ onMounted(load)
         <el-table-column label="库存 / 销量" width="140"><template #default="{ row }"><div class="two-line"><strong :class="{ 'text-danger': row.stock < 30 }">库存 {{ row.stock }}</strong><small>销量 {{ row.sales }}</small></div></template></el-table-column>
         <el-table-column label="状态" width="105"><template #default="{ row }"><StatusTag :status="row.status" /></template></el-table-column>
         <el-table-column label="更新时间" width="165"><template #default="{ row }">{{ dateTime(row.updatedAt) }}</template></el-table-column>
-        <el-table-column label="操作" width="215" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openEdit(row)">编辑</el-button><el-button link type="success" @click="openSkus(row)">多规格</el-button><el-button link :type="row.status === 'ON_SALE' ? 'danger' : 'success'" @click="toggle(row)">{{ row.status === 'ON_SALE' ? '下架' : '上架' }}</el-button></template></el-table-column>
+        <el-table-column label="操作" width="270" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="openEdit(row)">编辑</el-button><el-button link type="success" @click="openSkus(row)">多规格</el-button><el-button link :type="row.status === 'ON_SALE' ? 'warning' : 'success'" @click="toggle(row)">{{ row.status === 'ON_SALE' ? '下架' : '上架' }}</el-button><el-button link type="danger" @click="removeProduct(row)">删除</el-button></template></el-table-column>
       </el-table>
     </article>
 

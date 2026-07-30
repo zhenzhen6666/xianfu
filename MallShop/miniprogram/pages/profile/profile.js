@@ -1,9 +1,15 @@
 const api = require('../../utils/api')
+const config = require('../../utils/config')
 
 Page({
   data: {
     user: { nickname: '鲜福铺用户', memberLevelName: '普通会员', points: 0, totalSpent: 0 },
     avatarText: '鲜',
+    avatarUrl: '',
+    mobileText: '',
+    nicknameEditing: false,
+    nicknameDraft: '',
+    avatarUploading: false,
     couponCount: 0,
     favoriteCount: 0,
     menus: []
@@ -24,8 +30,55 @@ Page({
         { icon: '邀', name: '邀请有礼', value: '', action: 'share' },
         { icon: '设', name: '接口设置', value: '', action: 'settings' }
       ]
-      this.setData({ user, avatarText: (user.nickname || '鲜').slice(0, 1), couponCount: coupons.length, favoriteCount: favorites.length, menus })
+      this.applyUser(user)
+      this.setData({ couponCount: coupons.length, favoriteCount: favorites.length, menus })
     } catch (error) { wx.showToast({ title: error.message, icon: 'none', duration: 3000 }) }
+  },
+  applyUser(user) {
+    const mobile = user.mobile || ''
+    wx.setStorageSync(config.USER_KEY, user)
+    this.setData({
+      user,
+      avatarText: (user.nickname || '鲜').slice(0, 1),
+      avatarUrl: config.resolveApiFileUrl(user.avatarUrl),
+      mobileText: mobile ? `${mobile.slice(0, 3)}****${mobile.slice(-4)}` : '',
+      nicknameDraft: user.nickname || ''
+    })
+  },
+  openNicknameEdit() {
+    this.setData({ nicknameEditing: true, nicknameDraft: this.data.user.nickname || '' })
+  },
+  closeNicknameEdit() { this.setData({ nicknameEditing: false }) },
+  nicknameInput(e) { this.setData({ nicknameDraft: e.detail.value }) },
+  async saveNickname() {
+    const nickname = this.data.nicknameDraft.trim()
+    if (!nickname) return wx.showToast({ title: '昵称不能为空', icon: 'none' })
+    try {
+      const user = await api.updateProfile({ nickname, avatarUrl: this.data.user.avatarUrl || '' })
+      this.applyUser(user)
+      this.setData({ nicknameEditing: false })
+      wx.showToast({ title: '昵称已保存', icon: 'success' })
+    } catch (error) { wx.showToast({ title: error.message, icon: 'none' }) }
+  },
+  async chooseAvatar(e) {
+    const filePath = e.detail.avatarUrl
+    if (!filePath || this.data.avatarUploading) return
+    this.setData({ avatarUploading: true })
+    wx.showLoading({ title: '上传头像' })
+    try {
+      const uploaded = await api.uploadProfile(filePath)
+      const user = await api.updateProfile({
+        nickname: this.data.user.nickname || '鲜福铺用户',
+        avatarUrl: uploaded.url
+      })
+      this.applyUser(user)
+      wx.showToast({ title: '头像已更新', icon: 'success' })
+    } catch (error) {
+      wx.showToast({ title: error.message || '头像上传失败', icon: 'none' })
+    } finally {
+      wx.hideLoading()
+      this.setData({ avatarUploading: false })
+    }
   },
   goMember() { wx.navigateTo({ url: '/pages/member/member' }) },
   goOrders(e) {
@@ -51,8 +104,7 @@ Page({
     if (!e.detail.code) return wx.showToast({ title: '未授权获取手机号', icon: 'none' })
     try {
       const user = await api.bindWechatMobile(e.detail.code)
-      wx.setStorageSync('xianfupu_user_profile', user)
-      this.setData({ user })
+      this.applyUser(user)
       wx.showToast({ title: '手机号绑定成功', icon: 'success' })
     } catch (error) { wx.showToast({ title: error.message, icon: 'none' }) }
   },

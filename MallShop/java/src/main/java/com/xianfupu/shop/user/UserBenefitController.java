@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestBody;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
@@ -37,6 +39,11 @@ public class UserBenefitController {
     @PostMapping("/mobile/wechat")
     AuthService.UserProfile bindWechatMobile(@Valid @RequestBody WechatMobileRequest request) {
         return authService.bindWechatMobile(CurrentUser.id(), request.code());
+    }
+
+    @PutMapping("/profile")
+    AuthService.UserProfile updateProfile(@Valid @RequestBody ProfileRequest request) {
+        return authService.updateProfile(CurrentUser.id(), request.nickname(), request.avatarUrl());
     }
 
     @GetMapping("/coupons")
@@ -77,5 +84,9 @@ public class UserBenefitController {
     }
 
     public record WechatMobileRequest(@NotBlank String code) {
+    }
+
+    public record ProfileRequest(@NotBlank @Size(max = 80) String nickname,
+                                 @Size(max = 500) String avatarUrl) {
     }
 }

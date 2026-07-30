@@ -7,10 +7,10 @@ const put = (path, data) => request(path, { method: 'PUT', data })
 const patch = (path, data) => request(path, { method: 'PATCH', data })
 const remove = path => request(path, { method: 'DELETE' })
 
-function uploadAfterSale(filePath) {
+function uploadImage(filePath, endpoint) {
   return ensureLogin().then(() => request('/users/me/profile')).then(() => new Promise((resolve, reject) => {
     wx.uploadFile({
-      url: `${config.getApiBaseUrl()}/uploads/after-sale`,
+      url: `${config.getApiBaseUrl()}${endpoint}`,
       filePath,
       name: 'file',
       header: { Authorization: `Bearer ${wx.getStorageSync(config.TOKEN_KEY)}` },
@@ -23,6 +23,14 @@ function uploadAfterSale(filePath) {
       fail: reject
     })
   }))
+}
+
+function uploadAfterSale(filePath) {
+  return uploadImage(filePath, '/uploads/after-sale')
+}
+
+function uploadProfile(filePath) {
+  return uploadImage(filePath, '/uploads/profile')
 }
 
 module.exports = {
@@ -50,6 +58,7 @@ module.exports = {
   favorites: () => get('/users/me/favorites'),
   favorite: code => post(`/users/me/favorites/${code}`),
   unfavorite: code => remove(`/users/me/favorites/${code}`),
+  updateProfile: data => put('/users/me/profile', data),
   bindWechatMobile: code => post('/users/me/mobile/wechat', { code }),
   drawEgg: () => post('/users/me/activities/egg/draw'),
   previewOrder: data => post('/orders/preview', data),
@@ -68,5 +77,6 @@ module.exports = {
   createAfterSale: data => post('/after-sales', data),
   afterSales: () => get('/after-sales'),
   afterSale: no => get(`/after-sales/${no}`),
-  uploadAfterSale
+  uploadAfterSale,
+  uploadProfile
 }

@@ -34,7 +34,7 @@ public class AdminService {
                 ? "" : " WHERE p.status = :status";
         JdbcClient.StatementSpec query = jdbc.sql("""
                 SELECT p.product_code, c.code AS category_code, c.name AS category_name, p.name,
-                       p.subtitle, p.spec, p.image_url, p.original_price, p.sale_price,
+                       p.subtitle, p.description, p.spec, p.image_url, p.original_price, p.sale_price,
                        p.member_price, p.stock, p.sales, p.badge, p.status, p.sort_order, p.updated_at
                 FROM products p JOIN categories c ON c.id = p.category_id
                 """ + condition + " ORDER BY p.sort_order, p.id");
@@ -46,6 +46,7 @@ public class AdminService {
 
     @Transactional
     public AdminProduct saveProduct(long adminId, String productCode, ProductCommand command) {
+        validateProduct(command);
         Long categoryId = jdbc.sql("SELECT id FROM categories WHERE code = :code")
                 .param("code", command.categoryCode()).query(Long.class).optional()
                 .orElseThrow(() -> BusinessException.notFound("CATEGORY_NOT_FOUND", "商品分类不存在"));
@@ -87,6 +88,41 @@ public class AdminService {
         }
         ensureDefaultSku(code, command);
         return products("ALL").stream().filter(item -> item.productCode().equals(code)).findFirst().orElseThrow();
+    }
+
+    private void validateProduct(ProductCommand command) {
+        String status = command.status() == null ? "" : command.status().toUpperCase();
+        if (!List.of("ON_SALE", "OFF_SHELF").contains(status)) {
+            throw BusinessException.badRequest("INVALID_PRODUCT_STATUS", "商品状态只能是销售中或已下架");
+        }
+        if (command.originalPrice().compareTo(command.salePrice()) < 0) {
+            throw BusinessException.badRequest("INVALID_PRODUCT_PRICE", "商品原价不能低于销售价");
+        }
+        if (command.memberPrice() != null && command.memberPrice().compareTo(BigDecimal.ZERO) < 0) {
+            throw BusinessException.badRequest("INVALID_PRODUCT_PRICE", "会员价不能小于零");
+        }
+    }
+
+    @Transactional
+    public void deleteProduct(long adminId, String productCode) {
+        AdminProduct product = products("ALL").stream()
+                .filter(item -> item.productCode().equals(productCode)).findFirst()
+                .orElseThrow(() -> BusinessException.notFound("PRODUCT_NOT_FOUND", "商品不存在"));
+        long orders = jdbc.sql("""
+                SELECT COUNT(*) FROM order_items oi JOIN products p ON p.id = oi.product_id
+                WHERE p.product_code = :code
+                """).param("code", productCode).query(Long.class).single();
+        if (orders > 0) {
+            throw BusinessException.conflict("PRODUCT_IN_USE", "商品已有订单记录，不能删除，请改为下架");
+        }
+        Long productId = jdbc.sql("SELECT id FROM products WHERE product_code = :code")
+                .param("code", productCode).query(Long.class).single();
+        jdbc.sql("DELETE FROM cart_items WHERE product_id = :id").param("id", productId).update();
+        jdbc.sql("DELETE FROM product_favorites WHERE product_id = :id").param("id", productId).update();
+        jdbc.sql("DELETE FROM activity_products WHERE product_id = :id").param("id", productId).update();
+        jdbc.sql("DELETE FROM product_skus WHERE product_id = :id").param("id", productId).update();
+        jdbc.sql("DELETE FROM products WHERE id = :id").param("id", productId).update();
+        audit(adminId, "DELETE_PRODUCT", "PRODUCT", productCode, product);
     }
 
     public List<AdminSku> productSkus(String productCode) {
@@ -366,16 +402,33 @@ public class AdminService {
     }
 
     @Transactional
-    public void voidCoupon(long adminId, String couponCode) {
-        int updated = jdbc.sql("UPDATE coupons SET enabled = FALSE WHERE code = :code")
-                .param("code", couponCode).update();
+    public AdminCoupon setCouponEnabled(long adminId, String couponCode, boolean enabled) {
+        int updated = jdbc.sql("UPDATE coupons SET enabled = :enabled WHERE code = :code")
+                .param("enabled", enabled).param("code", couponCode).update();
         if (updated == 0) throw BusinessException.notFound("COUPON_NOT_FOUND", "优惠券不存在");
-        jdbc.sql("""
-                UPDATE user_coupons SET status = 'VOIDED'
-                WHERE coupon_id = (SELECT id FROM coupons WHERE code = :code)
-                  AND status IN ('AVAILABLE','NOT_STARTED')
-                """).param("code", couponCode).update();
-        audit(adminId, "VOID_COUPON", "COUPON", couponCode, "管理员作废");
+        audit(adminId, "UPDATE_COUPON_STATUS", "COUPON", couponCode, enabled);
+        return coupons().stream().filter(item -> item.code().equals(couponCode)).findFirst().orElseThrow();
+    }
+
+    @Transactional
+    public void deleteCoupon(long adminId, String couponCode) {
+        CouponRow coupon = jdbc.sql("""
+                SELECT id, code, name, amount, minimum_amount, total_stock, claimed_count,
+                       per_user_limit, starts_at, ends_at, enabled, created_at
+                FROM coupons WHERE code = :code
+                """).param("code", couponCode).query(CouponRow.class).optional()
+                .orElseThrow(() -> BusinessException.notFound("COUPON_NOT_FOUND", "优惠券不存在"));
+        long records = jdbc.sql("""
+                SELECT (SELECT COUNT(*) FROM user_coupons WHERE coupon_id = :id)
+                     + (SELECT COUNT(*) FROM coupon_issue_records WHERE coupon_id = :id)
+                """).param("id", coupon.id()).query(Long.class).single();
+        if (records > 0) {
+            throw BusinessException.conflict("COUPON_IN_USE", "优惠券已有领取或发放记录，不能删除，请改为停用");
+        }
+        jdbc.sql("DELETE FROM coupon_issue_batches WHERE coupon_id = :id")
+                .param("id", coupon.id()).update();
+        jdbc.sql("DELETE FROM coupons WHERE id = :id").param("id", coupon.id()).update();
+        audit(adminId, "DELETE_COUPON", "COUPON", couponCode, coupon);
     }
 
     @Transactional
@@ -586,6 +639,12 @@ public class AdminService {
 
     @Transactional
     public List<AdminCategory> saveCategory(long adminId, String code, CategoryCommand command) {
+        if (code == null || code.isBlank()) {
+            throw BusinessException.badRequest("INVALID_CATEGORY_CODE", "分类编码不能为空");
+        }
+        if (code.equals(command.parentCode())) {
+            throw BusinessException.badRequest("INVALID_CATEGORY_PARENT", "分类不能选择自己作为上级");
+        }
         Long parentId = null;
         if (command.parentCode() != null && !command.parentCode().isBlank()) {
             parentId = jdbc.sql("SELECT id FROM categories WHERE code = :code")
@@ -611,6 +670,30 @@ public class AdminService {
         }
         audit(adminId, "SAVE_CATEGORY", "CATEGORY", code, command);
         return categories();
+    }
+
+    @Transactional
+    public List<AdminCategory> createCategory(long adminId, CategoryCommand command) {
+        String code = "CAT" + UUID.randomUUID().toString().replace("-", "")
+                .substring(0, 10).toUpperCase();
+        return saveCategory(adminId, code, command);
+    }
+
+    @Transactional
+    public void deleteCategory(long adminId, String code) {
+        AdminCategory category = categories().stream().filter(item -> item.code().equals(code)).findFirst()
+                .orElseThrow(() -> BusinessException.notFound("CATEGORY_NOT_FOUND", "商品分类不存在"));
+        Long categoryId = jdbc.sql("SELECT id FROM categories WHERE code = :code")
+                .param("code", code).query(Long.class).single();
+        long references = jdbc.sql("""
+                SELECT (SELECT COUNT(*) FROM products WHERE category_id = :id)
+                     + (SELECT COUNT(*) FROM categories WHERE parent_id = :id)
+                """).param("id", categoryId).query(Long.class).single();
+        if (references > 0) {
+            throw BusinessException.conflict("CATEGORY_IN_USE", "分类下还有商品或子分类，不能删除，请先处理关联数据");
+        }
+        jdbc.sql("DELETE FROM categories WHERE id = :id").param("id", categoryId).update();
+        audit(adminId, "DELETE_CATEGORY", "CATEGORY", code, category);
     }
 
     public List<AdminHomeModule> homeModules() {
@@ -665,8 +748,25 @@ public class AdminService {
     }
 
     @Transactional
+    public AdminActivity createActivity(long adminId, ActivityCommand command) {
+        validateActivity(command);
+        String code = "ACT" + UUID.randomUUID().toString().replace("-", "")
+                .substring(0, 10).toUpperCase();
+        jdbc.sql("""
+                INSERT INTO activities(code, name, activity_type, description, rules_json,
+                    starts_at, ends_at, enabled)
+                VALUES (:code, :name, :type, :description, :rules, :startsAt, :endsAt, :enabled)
+                """).param("code", code).param("name", command.name()).param("type", command.activityType())
+                .param("description", command.description()).param("rules", command.rulesJson())
+                .param("startsAt", command.startsAt()).param("endsAt", command.endsAt())
+                .param("enabled", command.enabled()).update();
+        audit(adminId, "CREATE_ACTIVITY", "ACTIVITY", code, command);
+        return activities().stream().filter(item -> item.code().equals(code)).findFirst().orElseThrow();
+    }
+
+    @Transactional
     public AdminActivity updateActivity(long adminId, String code, ActivityCommand command) {
-        validateJson(command.rulesJson());
+        validateActivity(command);
         int updated = jdbc.sql("""
                 UPDATE activities SET name = :name, activity_type = :type, description = :description,
                     rules_json = :rules, starts_at = :startsAt, ends_at = :endsAt, enabled = :enabled
@@ -680,6 +780,30 @@ public class AdminService {
         }
         audit(adminId, "UPDATE_ACTIVITY", "ACTIVITY", code, command);
         return activities().stream().filter(item -> item.code().equals(code)).findFirst().orElseThrow();
+    }
+
+    @Transactional
+    public void deleteActivity(long adminId, String code) {
+        AdminActivity activity = activities().stream().filter(item -> item.code().equals(code)).findFirst()
+                .orElseThrow(() -> BusinessException.notFound("ACTIVITY_NOT_FOUND", "活动不存在"));
+        Long activityId = jdbc.sql("SELECT id FROM activities WHERE code = :code")
+                .param("code", code).query(Long.class).single();
+        long participations = jdbc.sql("SELECT COUNT(*) FROM activity_participations WHERE activity_id = :id")
+                .param("id", activityId).query(Long.class).single();
+        if (participations > 0) {
+            throw BusinessException.conflict("ACTIVITY_IN_USE", "活动已有用户参与记录，不能删除，请改为停用");
+        }
+        jdbc.sql("DELETE FROM activity_products WHERE activity_id = :id")
+                .param("id", activityId).update();
+        jdbc.sql("DELETE FROM activities WHERE id = :id").param("id", activityId).update();
+        audit(adminId, "DELETE_ACTIVITY", "ACTIVITY", code, activity);
+    }
+
+    private void validateActivity(ActivityCommand command) {
+        validateJson(command.rulesJson());
+        if (!command.endsAt().isAfter(command.startsAt())) {
+            throw BusinessException.badRequest("INVALID_ACTIVITY_PERIOD", "活动结束时间必须晚于开始时间");
+        }
     }
 
     public void updateAfterSale(long adminId, String afterSaleNo, String status, String reply,
@@ -805,7 +929,7 @@ public class AdminService {
     }
 
     public record AdminProduct(String productCode, String categoryCode, String categoryName, String name,
-                               String subtitle, String spec, String imageUrl, BigDecimal originalPrice,
+                               String subtitle, String description, String spec, String imageUrl, BigDecimal originalPrice,
                                BigDecimal salePrice, BigDecimal memberPrice, int stock, int sales,
                                String badge, String status, int sortOrder, LocalDateTime updatedAt) {
     }

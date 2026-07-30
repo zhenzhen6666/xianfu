@@ -1,12 +1,21 @@
 <view class="profile-page page-shell">
   <view class="profile-head">
-    <view class="avatar">{{avatarText}}<text></text></view>
-    <view class="user-info"><view>{{user.nickname}}</view><text bindtap="goMember">{{user.memberLevelName}} <text class="strong">›</text></text></view>
+    <button class="avatar avatar-button" open-type="chooseAvatar" bindchooseavatar="chooseAvatar">
+      <image wx:if="{{avatarUrl}}" src="{{avatarUrl}}" mode="aspectFill"></image>
+      <block wx:else>{{avatarText}}</block>
+      <text></text><view class="avatar-edit">✎</view>
+    </button>
+    <view class="user-info"><view bindtap="openNicknameEdit">{{user.nickname}} <text class="nickname-edit">✎</text></view><text bindtap="goMember">{{user.memberLevelName}} <text class="strong">›</text></text></view>
     <button open-type="share">↗</button>
   </view>
-  <view class="card mobile-bind" wx:if="{{!user.mobile}}">
-    <text>绑定微信手机号后可接收管理员发放的优惠券</text>
-    <button open-type="getPhoneNumber" bindgetphonenumber="bindMobile">立即绑定</button>
+  <view class="nickname-editor card" wx:if="{{nicknameEditing}}">
+    <input type="nickname" maxlength="80" value="{{nicknameDraft}}" bindinput="nicknameInput" placeholder="请输入昵称" focus />
+    <button bindtap="closeNicknameEdit">取消</button>
+    <button class="primary" bindtap="saveNickname">保存</button>
+  </view>
+  <view class="card mobile-bind">
+    <view><text>{{user.mobile ? '已绑定微信手机号' : '绑定手机号后可接收管理员发放的优惠券'}}</text><text wx:if="{{mobileText}}" class="mobile-number">{{mobileText}}</text></view>
+    <button open-type="getPhoneNumber" bindgetphonenumber="bindMobile">{{user.mobile ? '重新授权' : '立即绑定'}}</button>
   </view>
 
   <view class="member-card" bindtap="goMember">

@@ -32,7 +32,7 @@ const activeCount = computed(() => coupons.value.filter(item => item.status === 
 const issuedCount = computed(() => coupons.value.reduce((sum, item) => sum + item.claimedCount, 0))
 const statusMeta: Record<string, { label: string; type: '' | 'success' | 'warning' | 'info' | 'danger' }> = {
   ACTIVE: { label: '可发放', type: 'success' }, NOT_STARTED: { label: '未开始', type: 'warning' },
-  EXPIRED: { label: '已过期', type: 'info' }, DISABLED: { label: '已作废', type: 'info' },
+  EXPIRED: { label: '已过期', type: 'info' }, DISABLED: { label: '已停用', type: 'info' },
   OUT_OF_STOCK: { label: '已发完', type: 'danger' },
 }
 async function load() { loading.value = true; try { coupons.value = await adminApi.coupons() } finally { loading.value = false } }
@@ -52,9 +52,22 @@ async function save() {
     ElMessage.success(editingCode.value ? '优惠券已更新' : '优惠券已创建'); formOpen.value = false; await load()
   } finally { saving.value = false }
 }
-async function voidCoupon(row: Coupon) {
-  await ElMessageBox.confirm(`作废后，用户账户中尚未使用的“${row.name}”也将不可用。确定继续吗？`, '作废优惠券', { type: 'warning' })
-  await adminApi.voidCoupon(row.code); ElMessage.success('优惠券已作废'); await load()
+async function toggleCoupon(row: Coupon) {
+  await adminApi.updateCouponStatus(row.code, !row.enabled)
+  ElMessage.success(row.enabled ? '优惠券已停用' : '优惠券已启用')
+  await load()
+}
+async function deleteCoupon(row: Coupon) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除“${row.name}”吗？已有领取或发放记录的优惠券不能删除，只能停用。`,
+      '删除优惠券',
+      { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' },
+    )
+  } catch { return }
+  await adminApi.deleteCoupon(row.code)
+  ElMessage.success('优惠券已删除')
+  await load()
 }
 function openIssue(row: Coupon) { selected.value = row; issueMode.value = 'single'; issueText.value = ''; issueOpen.value = true }
 function mobiles() { return issueText.value.split(/[,\n，;；\\s]+/).map(value => value.trim()).filter(Boolean) }
@@ -83,7 +96,7 @@ onMounted(load)
 
 <template>
   <div>
-    <PageToolbar title="优惠券管理" description="编辑、作废、按手机号批量发放优惠券并查询完整发放记录">
+    <PageToolbar title="优惠券管理" description="新增、编辑、启停、删除并按手机号批量发放优惠券">
       <el-button :icon="Refresh" @click="load">刷新</el-button>
       <el-button @click="openRecords()">发放记录</el-button>
       <el-button type="primary" :icon="Plus" @click="openCreate">新建优惠券</el-button>
@@ -100,7 +113,7 @@ onMounted(load)
         <el-table-column label="发放进度" width="190"><template #default="{row}"><span>{{ row.claimedCount }} / {{ row.totalStock }}</span><el-progress :percentage="Math.round(row.claimedCount/row.totalStock*100)" :show-text="false" :stroke-width="5"/></template></el-table-column>
         <el-table-column label="有效期" min-width="225"><template #default="{row}"><div class="two-line"><span>{{ dateTime(row.startsAt) }}</span><small>至 {{ dateTime(row.endsAt) }}</small></div></template></el-table-column>
         <el-table-column label="状态" width="100"><template #default="{row}"><el-tag :type="(statusMeta[row.status]||statusMeta.DISABLED).type">{{ (statusMeta[row.status]||statusMeta.DISABLED).label }}</el-tag></template></el-table-column>
-        <el-table-column label="操作" width="250" fixed="right"><template #default="{row}"><el-button link type="primary" @click="openEdit(row)">编辑</el-button><el-button link type="success" :disabled="!row.enabled||['EXPIRED','OUT_OF_STOCK'].includes(row.status)" @click="openIssue(row)">发放</el-button><el-button link @click="openRecords(row)">记录</el-button><el-button v-if="row.enabled" link type="danger" @click="voidCoupon(row)">作废</el-button></template></el-table-column>
+        <el-table-column label="操作" width="310" fixed="right"><template #default="{row}"><el-button link type="primary" @click="openEdit(row)">编辑</el-button><el-button link type="success" :disabled="!row.enabled||['EXPIRED','OUT_OF_STOCK'].includes(row.status)" @click="openIssue(row)">发放</el-button><el-button link @click="openRecords(row)">记录</el-button><el-button link :type="row.enabled ? 'warning' : 'success'" @click="toggleCoupon(row)">{{ row.enabled ? '停用' : '启用' }}</el-button><el-button link type="danger" @click="deleteCoupon(row)">删除</el-button></template></el-table-column>
       </el-table>
     </article>
 

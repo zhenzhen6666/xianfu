@@ -111,6 +111,24 @@ public class AuthService {
     }
 
     @Transactional
+    public UserProfile updateProfile(long userId, String nickname, String avatarUrl) {
+        String normalizedNickname = nickname == null ? "" : nickname.trim();
+        if (normalizedNickname.isBlank()) {
+            throw BusinessException.badRequest("INVALID_NICKNAME", "昵称不能为空");
+        }
+        String normalizedAvatar = avatarUrl == null || avatarUrl.isBlank() ? null : avatarUrl.trim();
+        int updated = jdbc.sql("""
+                UPDATE users SET nickname = :nickname, avatar_url = :avatarUrl,
+                    updated_at = CURRENT_TIMESTAMP WHERE id = :userId
+                """).param("nickname", normalizedNickname).param("avatarUrl", normalizedAvatar)
+                .param("userId", userId).update();
+        if (updated == 0) {
+            throw BusinessException.notFound("USER_NOT_FOUND", "用户不存在");
+        }
+        return findById(userId);
+    }
+
+    @Transactional
     public UserProfile bindWechatMobile(long userId, String phoneCode) {
         if (appId.isBlank() || appSecret.isBlank()) {
             throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "WECHAT_NOT_CONFIGURED",

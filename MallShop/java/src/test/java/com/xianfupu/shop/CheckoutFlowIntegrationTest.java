@@ -224,4 +224,51 @@ class CheckoutFlowIntegrationTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("首页组件不存在");
     }
+
+    @Test
+    void updatesUserProfileAndCompletesAdminDataLifecycles() {
+        AuthService.UserProfile user = authService.devLogin("13400008888", "资料用户").user();
+        AuthService.UserProfile updatedUser =
+                authService.updateProfile(user.id(), "新昵称", "/api/files/avatar-test.jpg");
+        assertThat(updatedUser.nickname()).isEqualTo("新昵称");
+        assertThat(updatedUser.avatarUrl()).isEqualTo("/api/files/avatar-test.jpg");
+
+        long adminId = authService.devAdminLogin("TestAdminSecret", "生命周期管理员").user().id();
+        AdminService.CategoryCommand categoryCommand =
+                new AdminService.CategoryCommand(null, "测试分类", "", 999, true);
+        AdminService.AdminCategory category = adminService.createCategory(adminId, categoryCommand).stream()
+                .filter(item -> "测试分类".equals(item.name())).findFirst().orElseThrow();
+        assertThat(adminService.saveCategory(adminId, category.code(),
+                new AdminService.CategoryCommand(null, "已编辑分类", "", 998, false)))
+                .anyMatch(item -> item.code().equals(category.code()) && !item.enabled());
+
+        AdminService.ProductCommand productCommand = new AdminService.ProductCommand(
+                category.code(), "生命周期商品", "测试副标题", "测试描述", "500g/份", "",
+                new BigDecimal("12.00"), new BigDecimal("9.90"), new BigDecimal("8.90"),
+                10, "测试", "OFF_SHELF", 999);
+        AdminService.AdminProduct product = adminService.saveProduct(adminId, null, productCommand);
+        assertThat(product.description()).isEqualTo("测试描述");
+        adminService.deleteProduct(adminId, product.productCode());
+        assertThat(adminService.products("ALL")).noneMatch(item -> item.productCode().equals(product.productCode()));
+        adminService.deleteCategory(adminId, category.code());
+        assertThat(adminService.categories()).noneMatch(item -> item.code().equals(category.code()));
+
+        LocalDateTime now = LocalDateTime.now();
+        AdminService.AdminCoupon coupon = adminService.createCoupon(adminId,
+                new AdminService.CouponCommand("待删除券", BigDecimal.ONE, BigDecimal.ZERO,
+                        10, now.minusMinutes(1), now.plusDays(1), true));
+        assertThat(adminService.setCouponEnabled(adminId, coupon.code(), false).enabled()).isFalse();
+        adminService.deleteCoupon(adminId, coupon.code());
+        assertThat(adminService.coupons()).noneMatch(item -> item.code().equals(coupon.code()));
+
+        AdminService.ActivityCommand activityCommand = new AdminService.ActivityCommand(
+                "待删除活动", "DISCOUNT", "生命周期测试", "{\"discount\":0.9}",
+                now.minusMinutes(1), now.plusDays(1), true);
+        AdminService.AdminActivity activity = adminService.createActivity(adminId, activityCommand);
+        assertThat(adminService.updateActivity(adminId, activity.code(),
+                new AdminService.ActivityCommand("已编辑活动", "DISCOUNT", "已编辑",
+                        "{\"discount\":0.8}", now, now.plusDays(2), false)).enabled()).isFalse();
+        adminService.deleteActivity(adminId, activity.code());
+        assertThat(adminService.activities()).noneMatch(item -> item.code().equals(activity.code()));
+    }
 }

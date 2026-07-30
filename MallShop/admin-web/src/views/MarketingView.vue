@@ -150,6 +150,60 @@ function editActivity(row: Activity) {
   dialogOpen.value = true
 }
 
+function localDateTime(date: Date) {
+  const offset = date.getTimezoneOffset() * 60000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 19)
+}
+
+function newActivity() {
+  const now = new Date()
+  const end = new Date(now)
+  end.setMonth(end.getMonth() + 1)
+  Object.assign(activityForm, {
+    code: '',
+    name: '',
+    activityType: 'DISCOUNT',
+    description: '',
+    rulesJson: '{\n  "discount": 0.9\n}',
+    startsAt: localDateTime(now),
+    endsAt: localDateTime(end),
+    enabled: true,
+  })
+  dialogType.value = 'activity'
+  dialogOpen.value = true
+}
+
+function activityPayload(row: Activity) {
+  return {
+    name: row.name,
+    activityType: row.activityType,
+    description: row.description,
+    rulesJson: row.rulesJson,
+    startsAt: row.startsAt,
+    endsAt: row.endsAt,
+    enabled: row.enabled,
+  }
+}
+
+async function toggleActivity(row: Activity) {
+  await adminApi.updateActivity(row.code, activityPayload({ ...row, enabled: !row.enabled }))
+  ElMessage.success(row.enabled ? '营销活动已停用' : '营销活动已启用')
+  activities.value = await adminApi.activities()
+}
+
+async function deleteActivity(row: Activity) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除“${row.name}”吗？已有用户参与记录的活动不能删除，只能停用。`,
+      '删除营销活动',
+      { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' },
+    )
+  } catch { return }
+  await adminApi.deleteActivity(row.code)
+  ElMessage.success('营销活动已删除')
+  activities.value = await adminApi.activities()
+}
+
 function moduleLabel(type: string) {
   return ({
     QUICK_ENTRY: '快捷入口',
@@ -256,7 +310,7 @@ async function save() {
         : await adminApi.createHomeModule(payload)
     } else {
       if (!activityForm.name || !activityForm.startsAt || !activityForm.endsAt || !validJson(activityForm.rulesJson)) return
-      await adminApi.updateActivity(activityForm.code, {
+      const payload = {
         name: activityForm.name,
         activityType: activityForm.activityType,
         description: activityForm.description,
@@ -264,7 +318,9 @@ async function save() {
         startsAt: activityForm.startsAt,
         endsAt: activityForm.endsAt,
         enabled: activityForm.enabled,
-      })
+      }
+      if (activityForm.code) await adminApi.updateActivity(activityForm.code, payload)
+      else await adminApi.createActivity(payload)
       activities.value = await adminApi.activities()
     }
     ElMessage.success('营销配置已保存，小程序刷新后生效')
@@ -280,6 +336,7 @@ onMounted(load)
     <PageToolbar title="营销与首页装修" description="可视化修改小程序首页入口、活动卡片和配送提示">
       <el-button :icon="Refresh" @click="load">刷新</el-button>
       <el-button v-if="activeTab === 'modules'" type="primary" :icon="Plus" @click="newModule">新增组件</el-button>
+      <el-button v-else type="primary" :icon="Plus" @click="newActivity">新增活动</el-button>
     </PageToolbar>
 
     <article class="content-card marketing-card" v-loading="loading">
@@ -310,13 +367,13 @@ onMounted(load)
             <el-table-column prop="description" label="活动说明" min-width="250" show-overflow-tooltip />
             <el-table-column label="活动时间" min-width="260"><template #default="{ row }"><div class="two-line"><span>{{ dateTime(row.startsAt) }}</span><small>至 {{ dateTime(row.endsAt) }}</small></div></template></el-table-column>
             <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="row.enabled ? 'success' : 'info'" round>{{ row.enabled ? '已启用' : '已停用' }}</el-tag></template></el-table-column>
-            <el-table-column label="操作" width="90"><template #default="{ row }"><el-button link type="primary" @click="editActivity(row)">编辑</el-button></template></el-table-column>
+            <el-table-column label="操作" width="205"><template #default="{ row }"><el-button link type="primary" @click="editActivity(row)">编辑</el-button><el-button link :type="row.enabled ? 'warning' : 'success'" @click="toggleActivity(row)">{{ row.enabled ? '停用' : '启用' }}</el-button><el-button link type="danger" @click="deleteActivity(row)">删除</el-button></template></el-table-column>
           </el-table>
         </el-tab-pane>
       </el-tabs>
     </article>
 
-    <el-dialog v-model="dialogOpen" :title="dialogType === 'module' ? (moduleForm.id ? `编辑${moduleLabel(moduleForm.moduleType)}` : '新增首页组件') : '编辑营销活动'" width="760px">
+    <el-dialog v-model="dialogOpen" :title="dialogType === 'module' ? (moduleForm.id ? `编辑${moduleLabel(moduleForm.moduleType)}` : '新增首页组件') : (activityForm.code ? '编辑营销活动' : '新增营销活动')" width="760px">
       <el-form v-if="dialogType === 'module'" label-position="top">
         <div class="form-grid">
           <el-form-item label="组件类型">
@@ -389,7 +446,7 @@ onMounted(load)
       </el-form>
 
       <el-form v-else label-position="top" class="form-grid">
-        <el-form-item label="活动编码"><el-input v-model="activityForm.code" disabled /></el-form-item>
+        <el-form-item v-if="activityForm.code" label="活动编码"><el-input v-model="activityForm.code" disabled /></el-form-item>
         <el-form-item label="活动名称"><el-input v-model="activityForm.name" /></el-form-item>
         <el-form-item label="活动类型"><el-input v-model="activityForm.activityType" /></el-form-item>
         <el-form-item label="启用状态"><el-switch v-model="activityForm.enabled" inline-prompt active-text="启用" inactive-text="停用" /></el-form-item>

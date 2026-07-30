@@ -32,6 +32,15 @@ public class FileUploadController {
 
     @PostMapping(value = "/api/uploads/after-sale", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     UploadResult uploadAfterSale(@RequestParam("file") MultipartFile file) {
+        return storeImage(file);
+    }
+
+    @PostMapping(value = "/api/uploads/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    UploadResult uploadProfile(@RequestParam("file") MultipartFile file) {
+        return storeImage(file);
+    }
+
+    private UploadResult storeImage(MultipartFile file) {
         if (file.isEmpty() || file.getSize() > 5 * 1024 * 1024) {
             throw BusinessException.badRequest("INVALID_IMAGE", "图片不能为空且不能超过 5MB");
         }

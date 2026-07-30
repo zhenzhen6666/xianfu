@@ -67,6 +67,12 @@ public class AdminController {
         return service.saveProduct(CurrentUser.id(), productCode, request.toCommand());
     }
 
+    @DeleteMapping("/products/{productCode}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteProduct(@PathVariable String productCode) {
+        service.deleteProduct(CurrentUser.id(), productCode);
+    }
+
     @GetMapping("/products/{productCode}/skus")
     List<AdminService.AdminSku> productSkus(@PathVariable String productCode) {
         return service.productSkus(productCode);
@@ -168,10 +174,16 @@ public class AdminController {
         return service.updateCoupon(CurrentUser.id(), couponCode, request.toCommand());
     }
 
+    @PatchMapping("/coupons/{couponCode}/status")
+    AdminService.AdminCoupon updateCouponStatus(@PathVariable String couponCode,
+                                                @Valid @RequestBody EnabledRequest request) {
+        return service.setCouponEnabled(CurrentUser.id(), couponCode, request.enabled());
+    }
+
     @DeleteMapping("/coupons/{couponCode}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void voidCoupon(@PathVariable String couponCode) {
-        service.voidCoupon(CurrentUser.id(), couponCode);
+    void deleteCoupon(@PathVariable String couponCode) {
+        service.deleteCoupon(CurrentUser.id(), couponCode);
     }
 
     @PostMapping("/coupons/{couponCode}/issues")
@@ -215,10 +227,22 @@ public class AdminController {
         return service.categories();
     }
 
+    @PostMapping("/categories")
+    @ResponseStatus(HttpStatus.CREATED)
+    List<AdminService.AdminCategory> createCategory(@Valid @RequestBody CategoryRequest request) {
+        return service.createCategory(CurrentUser.id(), request.toCommand());
+    }
+
     @PutMapping("/categories/{code}")
     List<AdminService.AdminCategory> saveCategory(@PathVariable String code,
                                                   @Valid @RequestBody CategoryRequest request) {
         return service.saveCategory(CurrentUser.id(), code, request.toCommand());
+    }
+
+    @DeleteMapping("/categories/{code}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteCategory(@PathVariable String code) {
+        service.deleteCategory(CurrentUser.id(), code);
     }
 
     @GetMapping("/home-modules")
@@ -248,10 +272,22 @@ public class AdminController {
         return service.activities();
     }
 
+    @PostMapping("/activities")
+    @ResponseStatus(HttpStatus.CREATED)
+    AdminService.AdminActivity createActivity(@Valid @RequestBody ActivityRequest request) {
+        return service.createActivity(CurrentUser.id(), request.toCommand());
+    }
+
     @PutMapping("/activities/{code}")
     AdminService.AdminActivity updateActivity(@PathVariable String code,
                                               @Valid @RequestBody ActivityRequest request) {
         return service.updateActivity(CurrentUser.id(), code, request.toCommand());
+    }
+
+    @DeleteMapping("/activities/{code}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteActivity(@PathVariable String code) {
+        service.deleteActivity(CurrentUser.id(), code);
     }
 
     public record ProductRequest(@NotBlank String categoryCode, @NotBlank @Size(max = 120) String name,
@@ -268,6 +304,9 @@ public class AdminController {
     }
 
     public record StatusRequest(@NotBlank String status) {
+    }
+
+    public record EnabledRequest(boolean enabled) {
     }
 
     public record ProductSkusRequest(@NotNull @Size(min = 1, max = 30) List<@Valid SkuRequest> skus) {
