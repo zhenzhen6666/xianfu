@@ -120,11 +120,13 @@ public class AdminService {
                 .orElseThrow(() -> BusinessException.notFound("ORDER_NOT_FOUND", "订单不存在"));
         if ("COMPLETED".equals(target)) {
             OrderService.OrderDetail result = orderService.confirm(userId, orderNo);
+            acceptOrderNotification(orderNo);
             audit(adminId, "UPDATE_ORDER_STATUS", "ORDER", orderNo, status);
             return result;
         }
         if ("CANCELLED".equals(target)) {
             OrderService.OrderDetail result = orderService.cancel(userId, orderNo, "商家取消订单");
+            acceptOrderNotification(orderNo);
             audit(adminId, "UPDATE_ORDER_STATUS", "ORDER", orderNo, status);
             return result;
         }
@@ -136,6 +138,7 @@ public class AdminService {
         if (updated == 0) {
             throw BusinessException.notFound("ORDER_NOT_FOUND", "订单不存在");
         }
+        acceptOrderNotification(orderNo);
         audit(adminId, "UPDATE_ORDER_STATUS", "ORDER", orderNo, status);
         return orderService.adminDetail(orderNo);
     }
@@ -425,6 +428,17 @@ public class AdminService {
                 VALUES (:adminId, :operation, :targetType, :targetId, :detail)
                 """).param("adminId", adminId).param("operation", operation).param("targetType", targetType)
                 .param("targetId", targetId).param("detail", json(detail)).update();
+    }
+
+    private void acceptOrderNotification(String orderNo) {
+        jdbc.sql("""
+                UPDATE admin_order_notifications SET status = 'ACCEPTED',
+                    read_at = COALESCE(read_at, CURRENT_TIMESTAMP),
+                    accepted_at = COALESCE(accepted_at, CURRENT_TIMESTAMP),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE order_id = (SELECT id FROM shop_orders WHERE order_no = :orderNo)
+                  AND status IN ('UNREAD', 'READ')
+                """).param("orderNo", orderNo).update();
     }
 
     private void validateJson(String value) {

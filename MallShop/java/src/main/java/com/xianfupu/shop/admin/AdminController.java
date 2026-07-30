@@ -3,6 +3,7 @@ package com.xianfupu.shop.admin;
 import com.xianfupu.shop.order.OrderService;
 import com.xianfupu.shop.payment.PaymentService;
 import com.xianfupu.shop.security.CurrentUser;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
@@ -11,6 +12,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -22,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -31,9 +34,11 @@ import java.util.List;
 @RequestMapping("/api/admin")
 public class AdminController {
     private final AdminService service;
+    private final AdminOrderNotificationService orderNotifications;
 
-    public AdminController(AdminService service) {
+    public AdminController(AdminService service, AdminOrderNotificationService orderNotifications) {
         this.service = service;
+        this.orderNotifications = orderNotifications;
     }
 
     @GetMapping("/dashboard")
@@ -63,6 +68,33 @@ public class AdminController {
                                          @RequestParam(defaultValue = "0") int page,
                                          @RequestParam(defaultValue = "20") int size) {
         return service.orders(status, page, size);
+    }
+
+    @GetMapping("/order-notifications")
+    List<AdminOrderNotificationService.OrderNotificationView> orderNotifications() {
+        return orderNotifications.activeNotifications();
+    }
+
+    @GetMapping("/order-notifications/unread-count")
+    AdminOrderNotificationService.UnreadCount unreadOrderNotificationCount() {
+        return orderNotifications.unreadCount();
+    }
+
+    @PatchMapping("/order-notifications/{orderNo}/read")
+    AdminOrderNotificationService.OrderNotificationView readOrderNotification(@PathVariable String orderNo) {
+        return orderNotifications.markRead(orderNo);
+    }
+
+    @PatchMapping("/order-notifications/{orderNo}/accept")
+    AdminOrderNotificationService.OrderNotificationView acceptOrderNotification(@PathVariable String orderNo) {
+        return orderNotifications.accept(orderNo);
+    }
+
+    @GetMapping(value = "/order-events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    SseEmitter orderEvents(HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-cache, no-transform");
+        response.setHeader("X-Accel-Buffering", "no");
+        return orderNotifications.subscribe();
     }
 
     @GetMapping("/orders/{orderNo}")

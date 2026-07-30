@@ -4,6 +4,7 @@ import com.xianfupu.shop.catalog.CatalogService;
 import com.xianfupu.shop.common.BusinessException;
 import com.xianfupu.shop.user.AddressService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -27,15 +28,17 @@ public class OrderService {
     private final JdbcTemplate jdbcTemplate;
     private final AddressService addressService;
     private final CatalogService catalogService;
+    private final ApplicationEventPublisher eventPublisher;
     private final int paymentTimeoutMinutes;
 
     public OrderService(JdbcClient jdbc, JdbcTemplate jdbcTemplate, AddressService addressService,
-                        CatalogService catalogService,
+                        CatalogService catalogService, ApplicationEventPublisher eventPublisher,
                         @Value("${app.order.payment-timeout-minutes:15}") int paymentTimeoutMinutes) {
         this.jdbc = jdbc;
         this.jdbcTemplate = jdbcTemplate;
         this.addressService = addressService;
         this.catalogService = catalogService;
+        this.eventPublisher = eventPublisher;
         this.paymentTimeoutMinutes = paymentTimeoutMinutes;
     }
 
@@ -228,6 +231,18 @@ public class OrderService {
                     SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi WHERE oi.order_id = :orderId AND oi.product_id = p.id
                 ) WHERE EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = :orderId AND oi.product_id = p.id)
                 """).param("orderId", orderId).update();
+        jdbc.sql("""
+                INSERT INTO admin_order_notifications(order_id, status)
+                VALUES (:orderId, 'UNREAD')
+                """).param("orderId", orderId).update();
+        OrderPaidEvent event = jdbc.sql("""
+                SELECT o.order_no, 'UNREAD' AS status, u.nickname, u.mobile, o.pay_amount,
+                       o.receiver_name, o.receiver_mobile, o.receiver_address,
+                       o.paid_at, o.created_at
+                FROM shop_orders o JOIN users u ON u.id = o.user_id
+                WHERE o.id = :orderId
+                """).param("orderId", orderId).query(OrderPaidEvent.class).single();
+        eventPublisher.publishEvent(event);
     }
 
     private OrderPreview calculate(long userId, OrderCommand command, boolean lockProducts) {

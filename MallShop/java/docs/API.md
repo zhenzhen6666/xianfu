@@ -104,6 +104,10 @@
 - `GET/POST/PUT/DELETE /admin/home-modules...`：管理首页模块及快捷入口、活动卡片、配送提示
 - `GET/PUT /admin/activities...`
 - `GET /admin/orders`
+- `GET /admin/order-events`：SSE 实时新订单事件
+- `GET /admin/order-notifications`：待处理订单提醒列表
+- `GET /admin/order-notifications/unread-count`：未读订单数量
+- `PATCH /admin/order-notifications/{orderNo}/read|accept`：标记已读或接单
 - `PATCH /admin/orders/{orderNo}/status`
 - `POST /admin/orders/{orderNo}/refund`
 - `GET/PUT /admin/delivery-config`

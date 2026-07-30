@@ -13,6 +13,7 @@ import type {
   LoginResult,
   Order,
   OrderDetail,
+  OrderNotification,
   Product,
   ProductPayload,
 } from '../types/api'
@@ -27,6 +28,10 @@ export const adminApi = {
   updateProduct: (code: string, payload: ProductPayload) => data<Product>(http.put(`/admin/products/${code}`, payload)),
   orders: (status = 'ALL', page = 0, size = 100) => data<Order[]>(http.get('/admin/orders', { params: { status, page, size } })),
   order: (orderNo: string) => data<OrderDetail>(http.get(`/admin/orders/${orderNo}`)),
+  orderNotifications: () => data<OrderNotification[]>(http.get('/admin/order-notifications')),
+  unreadOrderNotificationCount: () => data<{ count: number }>(http.get('/admin/order-notifications/unread-count')),
+  readOrderNotification: (orderNo: string) => data<OrderNotification>(http.patch(`/admin/order-notifications/${orderNo}/read`)),
+  acceptOrderNotification: (orderNo: string) => data<OrderNotification>(http.patch(`/admin/order-notifications/${orderNo}/accept`)),
   updateOrderStatus: (orderNo: string, status: string) => data(http.patch(`/admin/orders/${orderNo}/status`, { status })),
   refund: (orderNo: string, amount: number, reason: string) => data(http.post(`/admin/orders/${orderNo}/refund`, { amount, reason })),
   delivery: () => data<DeliveryConfig>(http.get('/admin/delivery-config')),

@@ -1,6 +1,7 @@
 package com.xianfupu.shop;
 
 import com.xianfupu.shop.admin.AdminService;
+import com.xianfupu.shop.admin.AdminOrderNotificationService;
 import com.xianfupu.shop.auth.AuthService;
 import com.xianfupu.shop.cart.CartService;
 import com.xianfupu.shop.common.BusinessException;
@@ -34,6 +35,8 @@ class CheckoutFlowIntegrationTest {
     PaymentService paymentService;
     @Autowired
     AdminService adminService;
+    @Autowired
+    AdminOrderNotificationService orderNotificationService;
 
     @Test
     void completesCheckoutPaymentAndMemberRewardFlow() {
@@ -70,9 +73,19 @@ class CheckoutFlowIntegrationTest {
         assertThat(payment.status()).isEqualTo("PENDING");
         paymentService.mockCallback(payment.paymentNo(), true, "LOCAL-TEST-001", "local-mock-callback");
         assertThat(orderService.detail(userId, order.orderNo()).status()).isEqualTo("SHIPPING");
+        assertThat(orderNotificationService.unreadCount().count()).isEqualTo(1);
+        assertThat(orderNotificationService.activeNotifications())
+                .anyMatch(item -> item.orderNo().equals(order.orderNo())
+                        && "UNREAD".equals(item.status()));
+        assertThat(orderNotificationService.markRead(order.orderNo()).status()).isEqualTo("READ");
+        assertThat(orderNotificationService.unreadCount().count()).isZero();
 
-        OrderService.OrderDetail completed = orderService.confirm(userId, order.orderNo());
+        OrderService.OrderDetail completed = adminService.updateOrderStatus(
+                authService.devAdminLogin("TestAdminSecret", "订单管理员").user().id(),
+                order.orderNo(), "COMPLETED");
         assertThat(completed.status()).isEqualTo("COMPLETED");
+        assertThat(orderNotificationService.activeNotifications())
+                .noneMatch(item -> item.orderNo().equals(order.orderNo()));
         assertThat(authService.findById(userId).points()).isGreaterThanOrEqualTo(26);
         assertThat(authService.findById(userId).totalSpent()).isEqualByComparingTo("26.19");
     }

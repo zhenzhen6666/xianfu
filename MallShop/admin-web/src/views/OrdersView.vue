@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { Refresh, Search, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import 'element-plus/es/components/message-box/style/css'
@@ -10,6 +11,7 @@ import type { Order, OrderDetail } from '../types/api'
 import { dateTime, money } from '../utils/format'
 
 const loading = ref(false)
+const route = useRoute()
 const status = ref('ALL')
 const keyword = ref('')
 const orders = ref<Order[]>([])
@@ -20,12 +22,19 @@ const detail = ref<OrderDetail | null>(null)
 const refundOpen = ref(false)
 const refunding = ref(false)
 const refundForm = reactive({ orderNo: '', amount: 0, reason: '' })
+const lastOpenedFromQuery = ref('')
 const filtered = computed(() => {
   const needle = keyword.value.trim().toLowerCase()
   return orders.value.filter((row) => !needle || [row.orderNo, row.nickname, row.mobile, row.receiverName, row.receiverMobile].some((value) => value?.toLowerCase().includes(needle)))
 })
 
-async function load() { loading.value = true; try { orders.value = await adminApi.orders(status.value, 0, 100) } finally { loading.value = false } }
+async function load() {
+  loading.value = true
+  try {
+    orders.value = await adminApi.orders(status.value, 0, 100)
+    await openOrderFromQuery()
+  } finally { loading.value = false }
+}
 async function openDetail(row: Order) {
   selectedOrder.value = row
   detail.value = null
@@ -33,6 +42,14 @@ async function openDetail(row: Order) {
   detailLoading.value = true
   try { detail.value = await adminApi.order(row.orderNo) }
   finally { detailLoading.value = false }
+}
+async function openOrderFromQuery() {
+  const orderNo = typeof route.query.orderNo === 'string' ? route.query.orderNo : ''
+  if (!orderNo || orderNo === lastOpenedFromQuery.value) return
+  const row = orders.value.find(item => item.orderNo === orderNo)
+  if (!row) return
+  lastOpenedFromQuery.value = orderNo
+  await openDetail(row)
 }
 async function updateStatus(row: Order, target: string) {
   const labels: Record<string, string> = { SHIPPING: '开始配送', COMPLETED: '完成订单', CANCELLED: '取消订单' }
@@ -48,6 +65,7 @@ async function refund() {
   finally { refunding.value = false }
 }
 onMounted(load)
+watch(() => route.query.orderNo, openOrderFromQuery)
 </script>
 
 <template>

@@ -98,6 +98,19 @@ export interface OrderDetail {
   createdAt: string
 }
 
+export interface OrderNotification {
+  orderNo: string
+  status: 'UNREAD' | 'READ' | 'ACCEPTED'
+  nickname: string
+  mobile?: string
+  payAmount: number
+  receiverName: string
+  receiverMobile: string
+  receiverAddress: string
+  paidAt: string
+  createdAt: string
+}
+
 export interface DeliveryConfig {
   id: number
   name: string
