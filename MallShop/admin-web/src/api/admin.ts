@@ -1,6 +1,8 @@
 import { http } from './http'
 import type {
   Activity,
+  ActivityProduct,
+  ActivityProductPayload,
   AdminUser,
   AfterSale,
   Category,
@@ -73,6 +75,11 @@ export const adminApi = {
   createActivity: (payload: Omit<Activity, 'code'>) => data<Activity>(http.post('/admin/activities', payload)),
   updateActivity: (code: string, payload: Omit<Activity, 'code'>) => data<Activity>(http.put(`/admin/activities/${code}`, payload)),
   deleteActivity: (code: string) => data(http.delete(`/admin/activities/${code}`)),
+  activityProducts: (code: string) => data<ActivityProduct[]>(http.get(`/admin/activities/${code}/products`)),
+  saveActivityProduct: (code: string, productCode: string, payload: ActivityProductPayload) =>
+    data<ActivityProduct>(http.put(`/admin/activities/${code}/products/${productCode}`, payload)),
+  deleteActivityProduct: (code: string, productCode: string) =>
+    data(http.delete(`/admin/activities/${code}/products/${productCode}`)),
   errorLogs: () => data<ErrorLog[]>(http.get('/admin/operations/errors')),
   alerts: (status = 'ALL') => data<BusinessAlert[]>(http.get('/admin/operations/alerts', { params: { status } })),
   acknowledgeAlert: (id: number) => data(http.patch(`/admin/operations/alerts/${id}/acknowledge`)),

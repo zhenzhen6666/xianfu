@@ -799,6 +799,77 @@ public class AdminService {
         audit(adminId, "DELETE_ACTIVITY", "ACTIVITY", code, activity);
     }
 
+    public List<AdminActivityProduct> activityProducts(String activityCode) {
+        requireActivityId(activityCode);
+        return jdbc.sql("""
+                SELECT p.product_code, p.name, p.spec, p.image_url, p.sale_price,
+                       p.stock AS product_stock, p.status AS product_status,
+                       ap.activity_price, ap.activity_stock, ap.per_user_limit, ap.sort_order
+                FROM activity_products ap
+                JOIN activities a ON a.id = ap.activity_id
+                JOIN products p ON p.id = ap.product_id
+                WHERE a.code = :activityCode
+                ORDER BY ap.sort_order, ap.id
+                """).param("activityCode", activityCode).query(AdminActivityProduct.class).list();
+    }
+
+    @Transactional
+    public AdminActivityProduct saveActivityProduct(long adminId, String activityCode,
+                                                    String productCode,
+                                                    ActivityProductCommand command) {
+        Long activityId = requireActivityId(activityCode);
+        Long productId = jdbc.sql("SELECT id FROM products WHERE product_code = :code")
+                .param("code", productCode).query(Long.class).optional()
+                .orElseThrow(() -> BusinessException.notFound("PRODUCT_NOT_FOUND", "商品不存在"));
+        long exists = jdbc.sql("""
+                SELECT COUNT(*) FROM activity_products
+                WHERE activity_id = :activityId AND product_id = :productId
+                """).param("activityId", activityId).param("productId", productId)
+                .query(Long.class).single();
+        if (exists == 0) {
+            jdbc.sql("""
+                    INSERT INTO activity_products(activity_id, product_id, activity_price,
+                        activity_stock, per_user_limit, sort_order)
+                    VALUES (:activityId, :productId, :price, :stock, :limit, :sortOrder)
+                    """).param("activityId", activityId).param("productId", productId)
+                    .param("price", command.activityPrice()).param("stock", command.activityStock())
+                    .param("limit", command.perUserLimit()).param("sortOrder", command.sortOrder()).update();
+        } else {
+            jdbc.sql("""
+                    UPDATE activity_products SET activity_price = :price,
+                        activity_stock = :stock, per_user_limit = :limit, sort_order = :sortOrder
+                    WHERE activity_id = :activityId AND product_id = :productId
+                    """).param("price", command.activityPrice()).param("stock", command.activityStock())
+                    .param("limit", command.perUserLimit()).param("sortOrder", command.sortOrder())
+                    .param("activityId", activityId).param("productId", productId).update();
+        }
+        audit(adminId, exists == 0 ? "ADD_ACTIVITY_PRODUCT" : "UPDATE_ACTIVITY_PRODUCT",
+                "ACTIVITY_PRODUCT", activityCode + ":" + productCode, command);
+        return activityProducts(activityCode).stream()
+                .filter(item -> item.productCode().equals(productCode)).findFirst().orElseThrow();
+    }
+
+    @Transactional
+    public void deleteActivityProduct(long adminId, String activityCode, String productCode) {
+        Long activityId = requireActivityId(activityCode);
+        int deleted = jdbc.sql("""
+                DELETE FROM activity_products
+                WHERE activity_id = :activityId
+                  AND product_id = (SELECT id FROM products WHERE product_code = :productCode)
+                """).param("activityId", activityId).param("productCode", productCode).update();
+        if (deleted == 0) {
+            throw BusinessException.notFound("ACTIVITY_PRODUCT_NOT_FOUND", "活动中没有该商品");
+        }
+        audit(adminId, "DELETE_ACTIVITY_PRODUCT", "ACTIVITY_PRODUCT",
+                activityCode + ":" + productCode, "管理员移除活动商品");
+    }
+
+    private Long requireActivityId(String activityCode) {
+        return jdbc.sql("SELECT id FROM activities WHERE code = :code")
+                .param("code", activityCode).query(Long.class).optional()
+                .orElseThrow(() -> BusinessException.notFound("ACTIVITY_NOT_FOUND", "活动不存在"));
+    }
+
     private void validateActivity(ActivityCommand command) {
         validateJson(command.rulesJson());
         if (!command.endsAt().isAfter(command.startsAt())) {
@@ -1053,5 +1124,15 @@ public class AdminService {
     public record AdminActivity(String code, String name, String activityType, String description,
                                 String rulesJson, LocalDateTime startsAt, LocalDateTime endsAt,
                                 boolean enabled) {
+    }
+
+    public record ActivityProductCommand(BigDecimal activityPrice, Integer activityStock,
+                                         Integer perUserLimit, int sortOrder) {
+    }
+
+    public record AdminActivityProduct(String productCode, String name, String spec,
+                                       String imageUrl, BigDecimal salePrice, int productStock,
+                                       String productStatus, BigDecimal activityPrice,
+                                       Integer activityStock, Integer perUserLimit, int sortOrder) {
     }
 }

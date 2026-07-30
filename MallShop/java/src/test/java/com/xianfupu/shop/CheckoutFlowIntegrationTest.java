@@ -268,6 +268,14 @@ class CheckoutFlowIntegrationTest {
         assertThat(adminService.updateActivity(adminId, activity.code(),
                 new AdminService.ActivityCommand("已编辑活动", "DISCOUNT", "已编辑",
                         "{\"discount\":0.8}", now, now.plusDays(2), false)).enabled()).isFalse();
+        AdminService.AdminActivityProduct activityProduct = adminService.saveActivityProduct(
+                adminId, activity.code(), "p1",
+                new AdminService.ActivityProductCommand(
+                        new BigDecimal("0.50"), 20, 2, 1));
+        assertThat(activityProduct.activityPrice()).isEqualByComparingTo("0.50");
+        assertThat(adminService.activityProducts(activity.code())).hasSize(1);
+        adminService.deleteActivityProduct(adminId, activity.code(), "p1");
+        assertThat(adminService.activityProducts(activity.code())).isEmpty();
         adminService.deleteActivity(adminId, activity.code());
         assertThat(adminService.activities()).noneMatch(item -> item.code().equals(activity.code()));
     }

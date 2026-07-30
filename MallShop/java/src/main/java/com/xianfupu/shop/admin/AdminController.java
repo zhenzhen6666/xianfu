@@ -290,6 +290,25 @@ public class AdminController {
         service.deleteActivity(CurrentUser.id(), code);
     }
 
+    @GetMapping("/activities/{code}/products")
+    List<AdminService.AdminActivityProduct> activityProducts(@PathVariable String code) {
+        return service.activityProducts(code);
+    }
+
+    @PutMapping("/activities/{code}/products/{productCode}")
+    AdminService.AdminActivityProduct saveActivityProduct(
+            @PathVariable String code, @PathVariable String productCode,
+            @Valid @RequestBody ActivityProductRequest request) {
+        return service.saveActivityProduct(
+                CurrentUser.id(), code, productCode, request.toCommand());
+    }
+
+    @DeleteMapping("/activities/{code}/products/{productCode}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteActivityProduct(@PathVariable String code, @PathVariable String productCode) {
+        service.deleteActivityProduct(CurrentUser.id(), code, productCode);
+    }
+
     public record ProductRequest(@NotBlank String categoryCode, @NotBlank @Size(max = 120) String name,
                                  @Size(max = 255) String subtitle, String description,
                                  @NotBlank @Size(max = 100) String spec, @Size(max = 500) String imageUrl,
@@ -363,6 +382,16 @@ public class AdminController {
         AdminService.ActivityCommand toCommand() {
             return new AdminService.ActivityCommand(name, activityType, description, rulesJson,
                     startsAt, endsAt, enabled);
+        }
+    }
+
+    public record ActivityProductRequest(@DecimalMin("0") BigDecimal activityPrice,
+                                         @Min(1) Integer activityStock,
+                                         @Min(1) Integer perUserLimit,
+                                         @Min(0) int sortOrder) {
+        AdminService.ActivityProductCommand toCommand() {
+            return new AdminService.ActivityProductCommand(
+                    activityPrice, activityStock, perUserLimit, sortOrder);
         }
     }
 

@@ -71,7 +71,7 @@ public class ContentController {
                 SELECT p.product_code AS id, p.name, p.subtitle, p.spec, p.image_url AS image,
                        COALESCE(ap.activity_price, p.sale_price) AS price, p.original_price,
                        p.member_price, LEAST(p.stock, COALESCE(ap.activity_stock, p.stock)) AS stock,
-                       ap.per_user_limit
+                       p.sales, p.badge, ap.per_user_limit
                 FROM activity_products ap JOIN activities a ON a.id = ap.activity_id
                 JOIN products p ON p.id = ap.product_id
                 WHERE a.code = :code AND p.status = 'ON_SALE'
@@ -96,7 +96,7 @@ public class ContentController {
 
     public record ActivityProduct(String id, String name, String subtitle, String spec, String image,
                                   BigDecimal price, BigDecimal originalPrice, BigDecimal memberPrice,
-                                  int stock, Integer perUserLimit) {
+                                  int stock, int sales, String badge, Integer perUserLimit) {
     }
 
     public record ActivityDetail(ActivityView activity, List<ActivityProduct> products) {

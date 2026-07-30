@@ -26,11 +26,7 @@ Page({
   async loadActivity(type) {
     try {
       const detail = await api.activity(type)
-      let products = (detail.products || []).map(adapters.product)
-      if (!products.length) {
-        const page = await api.products({ sort: type === 'new' ? 'default' : 'sales', page: 0, size: 6 })
-        products = (page.items || []).slice(0, type === 'new' ? 4 : 6).map(adapters.product)
-      }
+      const products = (detail.products || []).map(adapters.product)
       const meta = META[type] || META.new
       const config = {
         title: detail.activity.name,
@@ -48,7 +44,7 @@ Page({
   },
   async addCart(e) {
     try {
-      const activityCode = ['penny', 'clean', 'deal'].includes(this.data.type) ? this.data.type : undefined
+      const activityCode = this.data.type
       await api.addCart(e.currentTarget.dataset.id, 1, activityCode)
       await this.refreshCart()
       wx.showToast({ title: activityCode === 'penny' ? '新人价已锁定' : '已加入购物车', icon: 'success' })

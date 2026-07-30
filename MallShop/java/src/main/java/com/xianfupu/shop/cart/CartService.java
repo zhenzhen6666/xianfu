@@ -168,6 +168,10 @@ public class CartService {
         if (quantity > limit) {
             throw BusinessException.badRequest("ACTIVITY_LIMIT", "该活动每人限购 " + limit + " 件");
         }
+        if (activity.activityStock() != null && quantity > activity.activityStock()) {
+            throw BusinessException.conflict(
+                    "ACTIVITY_STOCK_INSUFFICIENT", "活动库存不足，当前可购 " + activity.activityStock() + " 件");
+        }
         if ("penny".equals(activityCode)) {
             long prior = jdbc.sql("""
                     SELECT COUNT(*) FROM order_items oi JOIN shop_orders o ON o.id = oi.order_id

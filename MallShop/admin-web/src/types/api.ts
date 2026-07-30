@@ -205,6 +205,27 @@ export interface Activity {
   enabled: boolean
 }
 
+export interface ActivityProduct {
+  productCode: string
+  name: string
+  spec: string
+  imageUrl?: string
+  salePrice: number
+  productStock: number
+  productStatus: string
+  activityPrice?: number
+  activityStock?: number
+  perUserLimit?: number
+  sortOrder: number
+}
+
+export interface ActivityProductPayload {
+  activityPrice?: number
+  activityStock?: number
+  perUserLimit?: number
+  sortOrder: number
+}
+
 export interface Coupon {
   id: number
   code: string

@@ -4,8 +4,8 @@ import { Delete, Edit, Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi } from '../api/admin'
 import PageToolbar from '../components/PageToolbar.vue'
-import type { Activity, HomeModule } from '../types/api'
-import { dateTime } from '../utils/format'
+import type { Activity, ActivityProduct, ActivityProductPayload, HomeModule, Product } from '../types/api'
+import { dateTime, money } from '../utils/format'
 
 interface QuickItem {
   icon: string
@@ -30,6 +30,19 @@ const dialogOpen = ref(false)
 const dialogType = ref<'module' | 'activity'>('module')
 const modules = ref<HomeModule[]>([])
 const activities = ref<Activity[]>([])
+const productDialogOpen = ref(false)
+const productSaving = ref(false)
+const productActivity = ref<Activity | null>(null)
+const activityProducts = ref<ActivityProduct[]>([])
+const allProducts = ref<Product[]>([])
+const editingProductCode = ref('')
+const productForm = reactive<ActivityProductPayload & { productCode: string }>({
+  productCode: '',
+  activityPrice: undefined,
+  activityStock: undefined,
+  perUserLimit: 1,
+  sortOrder: 0,
+})
 const moduleForm = reactive({
   id: 0,
   moduleType: 'BANNER',
@@ -204,6 +217,91 @@ async function deleteActivity(row: Activity) {
   activities.value = await adminApi.activities()
 }
 
+async function openActivityProducts(row: Activity) {
+  productActivity.value = row
+  ;[activityProducts.value, allProducts.value] = await Promise.all([
+    adminApi.activityProducts(row.code),
+    adminApi.products('ALL'),
+  ])
+  productDialogOpen.value = true
+}
+
+function availableProducts() {
+  const linked = new Set(activityProducts.value.map(item => item.productCode))
+  return allProducts.value.filter(item => item.productCode === editingProductCode.value || !linked.has(item.productCode))
+}
+
+function resetProductForm() {
+  editingProductCode.value = ''
+  const candidate = availableProducts()[0]
+  Object.assign(productForm, {
+    productCode: candidate?.productCode || '',
+    activityPrice: candidate ? Number(candidate.salePrice) : undefined,
+    activityStock: candidate?.stock || undefined,
+    perUserLimit: 1,
+    sortOrder: activityProducts.value.length + 1,
+  })
+}
+
+function editActivityProduct(row: ActivityProduct) {
+  editingProductCode.value = row.productCode
+  Object.assign(productForm, {
+    productCode: row.productCode,
+    activityPrice: row.activityPrice == null ? Number(row.salePrice) : Number(row.activityPrice),
+    activityStock: row.activityStock == null ? row.productStock : row.activityStock,
+    perUserLimit: row.perUserLimit == null ? 1 : row.perUserLimit,
+    sortOrder: row.sortOrder,
+  })
+}
+
+function selectProduct(code: string) {
+  if (editingProductCode.value) return
+  const product = allProducts.value.find(item => item.productCode === code)
+  if (!product) return
+  productForm.activityPrice = Number(product.salePrice)
+  productForm.activityStock = product.stock
+}
+
+async function saveActivityProduct() {
+  if (!productActivity.value || !productForm.productCode) return ElMessage.warning('请选择活动商品')
+  if (productForm.activityPrice == null || productForm.activityPrice < 0
+    || productForm.activityStock == null || productForm.activityStock < 1
+    || productForm.perUserLimit == null || productForm.perUserLimit < 1) {
+    return ElMessage.warning('请检查活动价、活动库存和每人限购数量')
+  }
+  productSaving.value = true
+  try {
+    await adminApi.saveActivityProduct(
+      productActivity.value.code,
+      productForm.productCode,
+      {
+        activityPrice: productForm.activityPrice,
+        activityStock: productForm.activityStock,
+        perUserLimit: productForm.perUserLimit,
+        sortOrder: productForm.sortOrder,
+      },
+    )
+    ElMessage.success(editingProductCode.value ? '活动商品已更新' : '活动商品已添加')
+    activityProducts.value = await adminApi.activityProducts(productActivity.value.code)
+    resetProductForm()
+  } finally { productSaving.value = false }
+}
+
+async function removeActivityProduct(row: ActivityProduct) {
+  if (!productActivity.value) return
+  try {
+    await ElMessageBox.confirm(
+      `确定从“${productActivity.value.name}”中移除“${row.name}”吗？`,
+      '移除活动商品',
+      { type: 'warning', confirmButtonText: '确认移除', cancelButtonText: '取消' },
+    )
+  } catch { return }
+  await adminApi.deleteActivityProduct(productActivity.value.code, row.productCode)
+  ElMessage.success('活动商品已移除')
+  activityProducts.value = await adminApi.activityProducts(productActivity.value.code)
+  resetProductForm()
+}
+
 function moduleLabel(type: string) {
   return ({
     QUICK_ENTRY: '快捷入口',
@@ -367,7 +465,7 @@ onMounted(load)
             <el-table-column prop="description" label="活动说明" min-width="250" show-overflow-tooltip />
             <el-table-column label="活动时间" min-width="260"><template #default="{ row }"><div class="two-line"><span>{{ dateTime(row.startsAt) }}</span><small>至 {{ dateTime(row.endsAt) }}</small></div></template></el-table-column>
             <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="row.enabled ? 'success' : 'info'" round>{{ row.enabled ? '已启用' : '已停用' }}</el-tag></template></el-table-column>
-            <el-table-column label="操作" width="205"><template #default="{ row }"><el-button link type="primary" @click="editActivity(row)">编辑</el-button><el-button link :type="row.enabled ? 'warning' : 'success'" @click="toggleActivity(row)">{{ row.enabled ? '停用' : '启用' }}</el-button><el-button link type="danger" @click="deleteActivity(row)">删除</el-button></template></el-table-column>
+            <el-table-column label="操作" width="265"><template #default="{ row }"><el-button link type="success" @click="openActivityProducts(row)">活动商品</el-button><el-button link type="primary" @click="editActivity(row)">编辑</el-button><el-button link :type="row.enabled ? 'warning' : 'success'" @click="toggleActivity(row)">{{ row.enabled ? '停用' : '启用' }}</el-button><el-button link type="danger" @click="deleteActivity(row)">删除</el-button></template></el-table-column>
           </el-table>
         </el-tab-pane>
       </el-tabs>
@@ -401,7 +499,7 @@ onMounted(load)
               </div>
               <el-form-item label="图标文字"><el-input v-model="item.icon" maxlength="6" placeholder="例如：券" /></el-form-item>
               <el-form-item label="入口名称"><el-input v-model="item.name" maxlength="10" /></el-form-item>
-              <el-form-item label="跳转活动编码"><el-input v-model="item.type" placeholder="例如：new" /></el-form-item>
+              <el-form-item label="跳转活动"><el-select v-model="item.type" filterable allow-create default-first-option placeholder="选择营销活动"><el-option v-for="activity in activities" :key="activity.code" :label="`${activity.name}（${activity.code}）`" :value="activity.code" /></el-select></el-form-item>
               <el-form-item label="图标颜色"><el-select v-model="item.theme"><el-option v-for="theme in themeOptions" :key="theme.value" :label="theme.label" :value="theme.value" /></el-select></el-form-item>
             </div>
           </div>
@@ -420,7 +518,7 @@ onMounted(load)
                 <el-form-item label="小标题"><el-input v-model="item.kicker" maxlength="12" placeholder="省心搭配" /></el-form-item>
                 <el-form-item label="主标题"><el-input v-model="item.title" maxlength="12" placeholder="在家做饭" /></el-form-item>
                 <el-form-item label="按钮文字"><el-input v-model="item.linkText" maxlength="12" placeholder="去看看 →" /></el-form-item>
-                <el-form-item label="跳转活动编码"><el-input v-model="item.type" placeholder="例如：clean" /></el-form-item>
+                <el-form-item label="跳转活动"><el-select v-model="item.type" filterable allow-create default-first-option placeholder="选择营销活动"><el-option v-for="activity in activities" :key="activity.code" :label="`${activity.name}（${activity.code}）`" :value="activity.code" /></el-select></el-form-item>
                 <el-form-item label="商品图片路径" class="span-2"><el-input v-model="item.image" placeholder="/assets/products/mushroom.jpg" /></el-form-item>
                 <el-form-item label="卡片颜色"><el-select v-model="item.theme"><el-option v-for="theme in themeOptions" :key="theme.value" :label="theme.label" :value="theme.value" /></el-select></el-form-item>
               </div>
@@ -457,5 +555,36 @@ onMounted(load)
       </el-form>
       <template #footer><el-button @click="dialogOpen = false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存并发布</el-button></template>
     </el-dialog>
+
+    <el-dialog v-model="productDialogOpen" :title="`${productActivity?.name || ''} · 活动商品`" width="1080px" destroy-on-close @opened="resetProductForm">
+      <div class="home-config-tip">这里的商品会直接显示在小程序活动详情页。移除全部商品后，活动页会显示为空，不再自动补充普通商品。</div>
+      <el-form class="activity-product-form" label-position="top">
+        <el-form-item label="选择商品">
+          <el-select v-model="productForm.productCode" filterable :disabled="Boolean(editingProductCode)" placeholder="选择要加入活动的商品" @change="selectProduct">
+            <el-option v-for="item in availableProducts()" :key="item.productCode" :label="`${item.name} · ${item.spec}`" :value="item.productCode" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="活动价"><el-input-number v-model="productForm.activityPrice" :min="0" :precision="2" controls-position="right" /></el-form-item>
+        <el-form-item label="活动库存"><el-input-number v-model="productForm.activityStock" :min="1" controls-position="right" /></el-form-item>
+        <el-form-item label="每人限购"><el-input-number v-model="productForm.perUserLimit" :min="1" controls-position="right" /></el-form-item>
+        <el-form-item label="展示排序"><el-input-number v-model="productForm.sortOrder" :min="0" controls-position="right" /></el-form-item>
+        <el-form-item label="操作"><div><el-button v-if="editingProductCode" @click="resetProductForm">取消编辑</el-button><el-button type="primary" :loading="productSaving" :disabled="!productForm.productCode" @click="saveActivityProduct">{{ editingProductCode ? '保存修改' : '添加商品' }}</el-button></div></el-form-item>
+      </el-form>
+      <el-table :data="activityProducts" border max-height="460">
+        <el-table-column label="商品" min-width="230"><template #default="{ row }"><div class="two-line"><strong>{{ row.name }}</strong><small>{{ row.productCode }} · {{ row.spec }}</small></div></template></el-table-column>
+        <el-table-column label="原售价" width="110"><template #default="{ row }">{{ money(row.salePrice) }}</template></el-table-column>
+        <el-table-column label="活动价" width="110"><template #default="{ row }"><strong class="text-danger">{{ money(row.activityPrice == null ? row.salePrice : row.activityPrice) }}</strong></template></el-table-column>
+        <el-table-column label="活动/商品库存" width="145"><template #default="{ row }">{{ row.activityStock ?? row.productStock }} / {{ row.productStock }}</template></el-table-column>
+        <el-table-column prop="perUserLimit" label="每人限购" width="100" />
+        <el-table-column prop="sortOrder" label="排序" width="75" />
+        <el-table-column label="商品状态" width="95"><template #default="{ row }"><el-tag :type="row.productStatus === 'ON_SALE' ? 'success' : 'info'">{{ row.productStatus === 'ON_SALE' ? '销售中' : '已下架' }}</el-tag></template></el-table-column>
+        <el-table-column label="操作" width="120" fixed="right"><template #default="{ row }"><el-button link type="primary" @click="editActivityProduct(row)">编辑</el-button><el-button link type="danger" @click="removeActivityProduct(row)">移除</el-button></template></el-table-column>
+      </el-table>
+      <el-empty v-if="!activityProducts.length" description="暂无活动商品，请从上方选择商品添加" :image-size="70" />
+    </el-dialog>
   </div>
 </template>
+
+<style scoped>
+.activity-product-form{display:grid;grid-template-columns:2fr repeat(4,1fr) 1.5fr;gap:12px;align-items:end;margin:18px 0}.activity-product-form .el-form-item{margin-bottom:0}.activity-product-form .el-select,.activity-product-form .el-input-number{width:100%}@media(max-width:900px){.activity-product-form{grid-template-columns:1fr 1fr}}
+</style>

@@ -7,7 +7,8 @@
   <view class="egg-box card" wx:if="{{config.title === '欢乐砸金蛋'}}"><view class="egg {{eggOpened ? 'opened' : ''}}" bindtap="openEgg">{{eggOpened ? '券' : '蛋'}}</view><view><text class="strong">{{eggOpened ? '今日好运已开启' : '消耗 20 积分砸一次'}}</text><text class="small">{{eggOpened ? '优惠券已放入卡包' : '点击金蛋立即参与'}}</text></view></view>
   <view class="activity-body">
     <view class="body-head between"><view><view class="section-title">活动好物</view><view class="section-kicker">鲜价限时，先到先得</view></view><text>距结束 08:26:12</text></view>
-    <view class="activity-item card" wx:for="{{config.products}}" wx:key="id"><image src="{{item.image}}" mode="aspectFill" /><view class="item-main"><view class="badge">{{item.badge}}</view><view class="item-name">{{item.name}}</view><view class="item-spec">{{item.spec}} · 已抢 {{item.sales}} 件</view><view class="between item-bottom"><view><text class="price-symbol price">¥</text><text class="price">{{type === 'penny' ? '0.01' : item.price}}</text><text class="old">¥{{item.original}}</text></view><button data-id="{{item.id}}" bindtap="addCart">抢</button></view></view></view>
+    <view class="activity-empty card" wx:if="{{!config.products.length}}">暂无活动商品，请稍后再来</view>
+    <view class="activity-item card" wx:for="{{config.products}}" wx:key="id"><image src="{{item.image}}" mode="aspectFill" /><view class="item-main"><view class="badge">{{item.badge}}</view><view class="item-name">{{item.name}}</view><view class="item-spec">{{item.spec}} · 已抢 {{item.sales}} 件</view><view class="between item-bottom"><view><text class="price-symbol price">¥</text><text class="price">{{item.price}}</text><text class="old">¥{{item.original}}</text></view><button data-id="{{item.id}}" bindtap="addCart">抢</button></view></view></view>
   </view>
   <view class="activity-cart" bindtap="goCart">购物袋<text wx:if="{{cartCount}}">{{cartCount}}</text></view>
 </view>
