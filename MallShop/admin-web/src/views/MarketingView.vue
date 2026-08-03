@@ -265,7 +265,7 @@ function selectProduct(code: string) {
 async function saveActivityProduct() {
   if (!productActivity.value || !productForm.productCode) return ElMessage.warning('请选择活动商品')
   if (productForm.activityPrice == null || productForm.activityPrice < 0
-    || productForm.activityStock == null || productForm.activityStock < 1
+    || productForm.activityStock == null || productForm.activityStock < 0
     || productForm.perUserLimit == null || productForm.perUserLimit < 1) {
     return ElMessage.warning('请检查活动价、活动库存和每人限购数量')
   }
@@ -565,7 +565,7 @@ onMounted(load)
           </el-select>
         </el-form-item>
         <el-form-item label="活动价"><el-input-number v-model="productForm.activityPrice" :min="0" :precision="2" controls-position="right" /></el-form-item>
-        <el-form-item label="活动库存"><el-input-number v-model="productForm.activityStock" :min="1" controls-position="right" /></el-form-item>
+        <el-form-item label="剩余活动库存"><el-input-number v-model="productForm.activityStock" :min="0" controls-position="right" /></el-form-item>
         <el-form-item label="每人限购"><el-input-number v-model="productForm.perUserLimit" :min="1" controls-position="right" /></el-form-item>
         <el-form-item label="展示排序"><el-input-number v-model="productForm.sortOrder" :min="0" controls-position="right" /></el-form-item>
         <el-form-item label="操作"><div><el-button v-if="editingProductCode" @click="resetProductForm">取消编辑</el-button><el-button type="primary" :loading="productSaving" :disabled="!productForm.productCode" @click="saveActivityProduct">{{ editingProductCode ? '保存修改' : '添加商品' }}</el-button></div></el-form-item>

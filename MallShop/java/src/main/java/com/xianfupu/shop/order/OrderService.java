@@ -113,13 +113,30 @@ public class OrderService {
             if (changed == 0) {
                 throw BusinessException.conflict("INSUFFICIENT_STOCK", item.name() + " 库存不足");
             }
+            if (item.activityId() != null) {
+                int activityChanged = jdbc.sql("""
+                        UPDATE activity_products SET activity_stock = activity_stock - :quantity
+                        WHERE activity_id = :activityId AND product_id = :productId
+                          AND activity_stock >= :quantity
+                          AND EXISTS (SELECT 1 FROM activities a WHERE a.id = :activityId
+                              AND a.enabled = TRUE
+                              AND CURRENT_TIMESTAMP BETWEEN a.starts_at AND a.ends_at)
+                        """).param("quantity", item.count()).param("activityId", item.activityId())
+                        .param("productId", item.productId()).update();
+                if (activityChanged == 0) {
+                    throw BusinessException.conflict(
+                            "ACTIVITY_STOCK_INSUFFICIENT", item.name() + " 活动库存不足");
+                }
+            }
             jdbc.sql("""
-                    INSERT INTO order_items(order_id, product_id, sku_id, sku_code, product_code,
-                        product_name, spec, image_url, unit_price, quantity, line_amount)
-                    VALUES (:orderId, :productId, :skuId, :skuCode, :code, :name, :spec,
-                        :image, :price, :quantity, :amount)
+                    INSERT INTO order_items(order_id, product_id, sku_id, sku_code,
+                        activity_id, activity_code, product_code, product_name, spec, image_url,
+                        unit_price, quantity, line_amount)
+                    VALUES (:orderId, :productId, :skuId, :skuCode, :activityId, :activityCode,
+                        :code, :name, :spec, :image, :price, :quantity, :amount)
                     """).param("orderId", orderId).param("productId", item.productId())
                     .param("skuId", item.skuId()).param("skuCode", item.skuCode())
+                    .param("activityId", item.activityId()).param("activityCode", item.activityCode())
                     .param("code", item.id()).param("name", item.name()).param("spec", item.spec())
                     .param("image", item.image()).param("price", item.price()).param("quantity", item.count())
                     .param("amount", item.lineAmount()).update();
@@ -298,20 +315,29 @@ public class OrderService {
         String lock = lockProducts ? " FOR UPDATE" : "";
         List<CheckoutItem> items = jdbc.sql("""
                 SELECT p.id AS product_id, sku.id AS sku_id, sku.sku_code,
+                       ci.activity_id, a.code AS activity_code, ap.id AS activity_product_id,
+                       a.enabled AS activity_enabled, a.starts_at AS activity_starts_at,
+                       a.ends_at AS activity_ends_at, ap.activity_stock, ap.per_user_limit,
                        p.product_code AS id, p.name, COALESCE(sku.spec_name, p.spec) AS spec,
                        p.image_url AS image,
-                       COALESCE(ci.price_override,
+                       CASE WHEN ci.activity_id IS NOT NULL
+                            THEN COALESCE(ap.activity_price, COALESCE(sku.sale_price, p.sale_price))
+                            ELSE
                            CASE WHEN ml.code <> 'NORMAL' AND COALESCE(sku.member_price, p.member_price) IS NOT NULL
                                 THEN COALESCE(sku.member_price, p.member_price)
-                                ELSE COALESCE(sku.sale_price, p.sale_price) END) AS price,
+                                ELSE COALESCE(sku.sale_price, p.sale_price) END END AS price,
                        COALESCE(sku.sale_price, p.sale_price) AS sale_price,
                        COALESCE(sku.stock, p.stock) AS stock, ci.quantity AS count,
-                       COALESCE(ci.price_override,
+                       (CASE WHEN ci.activity_id IS NOT NULL
+                            THEN COALESCE(ap.activity_price, COALESCE(sku.sale_price, p.sale_price))
+                            ELSE
                            CASE WHEN ml.code <> 'NORMAL' AND COALESCE(sku.member_price, p.member_price) IS NOT NULL
                                 THEN COALESCE(sku.member_price, p.member_price)
-                                ELSE COALESCE(sku.sale_price, p.sale_price) END) * ci.quantity AS line_amount
+                                ELSE COALESCE(sku.sale_price, p.sale_price) END END) * ci.quantity AS line_amount
                 FROM cart_items ci JOIN products p ON p.id = ci.product_id
                 LEFT JOIN product_skus sku ON sku.id = ci.sku_id
+                LEFT JOIN activities a ON a.id = ci.activity_id
+                LEFT JOIN activity_products ap ON ap.activity_id = ci.activity_id AND ap.product_id = ci.product_id
                 JOIN users u ON u.id = ci.user_id JOIN member_levels ml ON ml.id = u.member_level_id
                 WHERE ci.user_id = :userId AND ci.selected = TRUE AND p.status = 'ON_SALE'
                   AND (ci.sku_id IS NULL OR sku.enabled = TRUE)
@@ -324,6 +350,7 @@ public class OrderService {
             if (item.count() > item.stock()) {
                 throw BusinessException.conflict("INSUFFICIENT_STOCK", item.name() + " 库存不足");
             }
+            validateActivityItem(userId, item);
         }
         BigDecimal subtotal = money(items.stream().map(CheckoutItem::lineAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
         BigDecimal rawSaleTotal = items.stream()
@@ -343,6 +370,34 @@ public class OrderService {
         return new OrderPreview(items, subtotal, deliveryFee, couponDiscount, memberDiscount,
                 pointsUsed, pointsDiscount, payAmount, delivery.freeThreshold(), delivery.maxDistanceKm(),
                 delivery.promiseMinutes());
+    }
+
+    private void validateActivityItem(long userId, CheckoutItem item) {
+        if (item.activityId() == null) return;
+        LocalDateTime now = LocalDateTime.now();
+        if (item.activityProductId() == null || item.activityCode() == null
+                || !Boolean.TRUE.equals(item.activityEnabled())
+                || item.activityStartsAt() == null || item.activityEndsAt() == null
+                || now.isBefore(item.activityStartsAt()) || now.isAfter(item.activityEndsAt())) {
+            throw BusinessException.conflict(
+                    "ACTIVITY_UNAVAILABLE", item.name() + " 的活动已结束或商品已移出活动");
+        }
+        int available = item.activityStock() == null ? 0 : item.activityStock();
+        if (item.count() > available) {
+            throw BusinessException.conflict(
+                    "ACTIVITY_STOCK_INSUFFICIENT", item.name() + " 活动库存仅剩 " + available + " 件");
+        }
+        int limit = item.perUserLimit() == null ? 99 : item.perUserLimit();
+        int ordered = jdbc.sql("""
+                SELECT COALESCE(SUM(oi.quantity), 0)
+                FROM order_items oi JOIN shop_orders o ON o.id = oi.order_id
+                WHERE o.user_id = :userId AND oi.activity_id = :activityId
+                  AND oi.product_id = :productId AND o.status <> 'CANCELLED'
+                """).param("userId", userId).param("activityId", item.activityId())
+                .param("productId", item.productId()).query(Integer.class).single();
+        if (ordered + item.count() > limit) {
+            throw BusinessException.conflict("ACTIVITY_LIMIT", item.name() + " 每人限购 " + limit + " 件");
+        }
     }
 
     private BigDecimal couponDiscount(long userId, Long userCouponId, BigDecimal subtotal) {
@@ -371,7 +426,8 @@ public class OrderService {
                     cancel_reason = :reason, updated_at = CURRENT_TIMESTAMP WHERE id = :id
                 """).param("reason", reason).param("id", order.id()).update();
         List<RestoreItem> items = jdbc.sql("""
-                SELECT product_id, sku_id, quantity FROM order_items WHERE order_id = :orderId
+                SELECT product_id, sku_id, activity_id, quantity
+                FROM order_items WHERE order_id = :orderId
                 """)
                 .param("orderId", order.id()).query(RestoreItem.class).list();
         for (RestoreItem item : items) {
@@ -382,6 +438,13 @@ public class OrderService {
             } else {
                 jdbc.sql("UPDATE products SET stock = stock + :quantity, version = version + 1 WHERE id = :productId")
                         .param("quantity", item.quantity()).param("productId", item.productId()).update();
+            }
+            if (item.activityId() != null) {
+                jdbc.sql("""
+                        UPDATE activity_products SET activity_stock = activity_stock + :quantity
+                        WHERE activity_id = :activityId AND product_id = :productId
+                        """).param("quantity", item.quantity()).param("activityId", item.activityId())
+                        .param("productId", item.productId()).update();
             }
         }
         jdbc.sql("""
@@ -496,7 +559,10 @@ public class OrderService {
         }
     }
 
-    public record CheckoutItem(long productId, Long skuId, String skuCode, String id,
+    public record CheckoutItem(long productId, Long skuId, String skuCode, Long activityId,
+                               String activityCode, Long activityProductId, Boolean activityEnabled,
+                               LocalDateTime activityStartsAt, LocalDateTime activityEndsAt,
+                               Integer activityStock, Integer perUserLimit, String id,
                                String name, String spec, String image,
                                BigDecimal price, BigDecimal salePrice, int stock, int count,
                                BigDecimal lineAmount) {
@@ -534,7 +600,7 @@ public class OrderService {
     private record OrderIdentity(long id, String orderNo, long userId, String status, BigDecimal payAmount) {
     }
 
-    private record RestoreItem(long productId, Long skuId, int quantity) {
+    private record RestoreItem(long productId, Long skuId, Long activityId, int quantity) {
     }
 
     private record LowStockProduct(String productCode, String name, int stock) {

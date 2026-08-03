@@ -386,7 +386,7 @@ public class AdminController {
     }
 
     public record ActivityProductRequest(@DecimalMin("0") BigDecimal activityPrice,
-                                         @Min(1) Integer activityStock,
+                                         @NotNull @Min(0) Integer activityStock,
                                          @Min(1) Integer perUserLimit,
                                          @Min(0) int sortOrder) {
         AdminService.ActivityProductCommand toCommand() {

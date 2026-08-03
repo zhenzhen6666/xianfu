@@ -279,4 +279,45 @@ class CheckoutFlowIntegrationTest {
         adminService.deleteActivity(adminId, activity.code());
         assertThat(adminService.activities()).noneMatch(item -> item.code().equals(activity.code()));
     }
+
+    @Test
+    void reservesActivityStockAndRestoresItWhenOrderIsCancelled() {
+        long adminId = authService.devAdminLogin("TestAdminSecret", "活动库存管理员").user().id();
+        LocalDateTime now = LocalDateTime.now();
+        AdminService.AdminActivity activity = adminService.createActivity(adminId,
+                new AdminService.ActivityCommand(
+                        "活动库存测试", "DISCOUNT", "验证活动库存预占和返还", "{}",
+                        now.minusMinutes(1), now.plusDays(1), true));
+        adminService.saveActivityProduct(adminId, activity.code(), "p2",
+                new AdminService.ActivityProductCommand(new BigDecimal("0.02"), 1, 2, 1));
+
+        AuthService.UserProfile firstUser = authService.devLogin("13100001001", "活动用户一").user();
+        AddressService.AddressView firstAddress = addressService.create(firstUser.id(),
+                new AddressService.AddressCommand("活动用户一", "13100001001", "活动测试地址一",
+                        null, null, BigDecimal.ONE, true));
+        cartService.add(firstUser.id(), "p2", 1, activity.code());
+        OrderService.OrderDetail order = orderService.create(firstUser.id(),
+                new OrderService.OrderCommand(
+                        firstAddress.id(), null, 0, null, "activity-stock-reserve-test"));
+
+        assertThat(adminService.activityProducts(activity.code()).get(0).activityStock()).isZero();
+        assertThatThrownBy(() -> adminService.deleteActivityProduct(
+                adminId, activity.code(), "p2"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("该商品还有待支付订单占用活动库存，请等待订单支付或取消后再移除");
+
+        AuthService.UserProfile secondUser = authService.devLogin("13100001002", "活动用户二").user();
+        assertThatThrownBy(() -> cartService.add(secondUser.id(), "p2", 1, activity.code()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("活动库存不足，当前可购 0 件");
+
+        orderService.cancel(firstUser.id(), order.orderNo(), "取消活动库存测试订单");
+        assertThat(adminService.activityProducts(activity.code()).get(0).activityStock()).isEqualTo(1);
+        assertThat(cartService.add(secondUser.id(), "p2", 1, activity.code()).items())
+                .anyMatch(item -> "p2".equals(item.id())
+                        && item.price().compareTo(new BigDecimal("0.02")) == 0);
+
+        adminService.deleteActivityProduct(adminId, activity.code(), "p2");
+        adminService.deleteActivity(adminId, activity.code());
+    }
 }

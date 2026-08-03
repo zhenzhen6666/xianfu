@@ -793,6 +793,12 @@ public class AdminService {
         if (participations > 0) {
             throw BusinessException.conflict("ACTIVITY_IN_USE", "活动已有用户参与记录，不能删除，请改为停用");
         }
+        if (activeActivityReservations(activityId, null) > 0) {
+            throw BusinessException.conflict(
+                    "ACTIVITY_STOCK_RESERVED", "活动还有待支付订单占用库存，请等待订单支付或取消后再删除");
+        }
+        jdbc.sql("UPDATE cart_items SET activity_id = NULL, price_override = NULL WHERE activity_id = :id")
+                .param("id", activityId).update();
         jdbc.sql("DELETE FROM activity_products WHERE activity_id = :id")
                 .param("id", activityId).update();
         jdbc.sql("DELETE FROM activities WHERE id = :id").param("id", activityId).update();
@@ -817,6 +823,12 @@ public class AdminService {
     public AdminActivityProduct saveActivityProduct(long adminId, String activityCode,
                                                     String productCode,
                                                     ActivityProductCommand command) {
+        if (command.activityStock() == null || command.activityStock() < 0) {
+            throw BusinessException.badRequest("INVALID_ACTIVITY_STOCK", "活动剩余库存不能小于零");
+        }
+        if (command.perUserLimit() != null && command.perUserLimit() < 1) {
+            throw BusinessException.badRequest("INVALID_ACTIVITY_LIMIT", "每人限购数量必须大于零");
+        }
         Long activityId = requireActivityId(activityCode);
         Long productId = jdbc.sql("SELECT id FROM products WHERE product_code = :code")
                 .param("code", productCode).query(Long.class).optional()
@@ -852,16 +864,36 @@ public class AdminService {
     @Transactional
     public void deleteActivityProduct(long adminId, String activityCode, String productCode) {
         Long activityId = requireActivityId(activityCode);
+        Long productId = jdbc.sql("SELECT id FROM products WHERE product_code = :code")
+                .param("code", productCode).query(Long.class).optional()
+                .orElseThrow(() -> BusinessException.notFound("PRODUCT_NOT_FOUND", "商品不存在"));
+        if (activeActivityReservations(activityId, productId) > 0) {
+            throw BusinessException.conflict(
+                    "ACTIVITY_STOCK_RESERVED", "该商品还有待支付订单占用活动库存，请等待订单支付或取消后再移除");
+        }
+        jdbc.sql("""
+                UPDATE cart_items SET activity_id = NULL, price_override = NULL
+                WHERE activity_id = :activityId AND product_id = :productId
+                """).param("activityId", activityId).param("productId", productId).update();
         int deleted = jdbc.sql("""
                 DELETE FROM activity_products
-                WHERE activity_id = :activityId
-                  AND product_id = (SELECT id FROM products WHERE product_code = :productCode)
-                """).param("activityId", activityId).param("productCode", productCode).update();
+                WHERE activity_id = :activityId AND product_id = :productId
+                """).param("activityId", activityId).param("productId", productId).update();
         if (deleted == 0) {
             throw BusinessException.notFound("ACTIVITY_PRODUCT_NOT_FOUND", "活动中没有该商品");
         }
         audit(adminId, "DELETE_ACTIVITY_PRODUCT", "ACTIVITY_PRODUCT",
                 activityCode + ":" + productCode, "管理员移除活动商品");
+    }
+
+    private long activeActivityReservations(long activityId, Long productId) {
+        String productCondition = productId == null ? "" : " AND oi.product_id = :productId";
+        JdbcClient.StatementSpec query = jdbc.sql("""
+                SELECT COUNT(*) FROM order_items oi JOIN shop_orders o ON o.id = oi.order_id
+                WHERE oi.activity_id = :activityId AND o.status = 'WAIT_PAY'
+                """ + productCondition).param("activityId", activityId);
+        if (productId != null) query = query.param("productId", productId);
+        return query.query(Long.class).single();
     }
 
     private Long requireActivityId(String activityCode) {
