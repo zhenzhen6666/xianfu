@@ -26,6 +26,7 @@ import type {
   BusinessAlert,
   PaymentCallbackLog,
   AuthSession,
+  SearchKeywordStat,
 } from '../types/api'
 
 const data = <T>(request: Promise<{ data: T }>) => request.then((response) => response.data)
@@ -86,4 +87,11 @@ export const adminApi = {
   paymentCallbacks: () => data<PaymentCallbackLog[]>(http.get('/admin/operations/payment-callbacks')),
   sessions: () => data<AuthSession[]>(http.get('/admin/operations/sessions')),
   revokeSession: (id: string) => data(http.delete(`/admin/operations/sessions/${id}`)),
+  searchKeywordStats: (days = 30) => data<SearchKeywordStat[]>(http.get('/admin/data/search-keywords', { params: { days } })),
+  exportData: async (type: 'orders' | 'products' | 'users' | 'coupons') => {
+    const response = await http.get<Blob>(`/admin/data/exports/${type}`, { responseType: 'blob' })
+    const disposition = String(response.headers['content-disposition'] || '')
+    const matched = disposition.match(/filename="?([^";]+)"?/i)
+    return { blob: response.data, filename: matched?.[1] || `${type}.csv` }
+  },
 }

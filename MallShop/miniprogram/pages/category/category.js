@@ -9,6 +9,8 @@ Page({
     specialOnly: false,
     memberOnly: false,
     searchValue: '',
+    searchHistory: [],
+    hotKeywords: [],
     products: [],
     cartCount: 0,
     selectedProduct: null,
@@ -18,6 +20,7 @@ Page({
   },
 
   async onLoad() {
+    this.loadSearchSuggestions()
     try {
       const list = await api.categories()
       const payload = list && list.data ? list.data : list
@@ -31,7 +34,7 @@ Page({
   onShow() {
     const searchValue = wx.getStorageSync('xianfupu_search') || ''
     if (searchValue) wx.removeStorageSync('xianfupu_search')
-    this.setData({ searchValue }, () => this.loadProducts())
+    this.setData({ searchValue }, () => this.loadProducts(Boolean(searchValue)))
     this.refreshCart()
   },
   bindSearch(e) {
@@ -39,7 +42,21 @@ Page({
     clearTimeout(this.searchTimer)
     this.searchTimer = setTimeout(() => this.loadProducts(), 280)
   },
+  confirmSearch() {
+    clearTimeout(this.searchTimer)
+    this.loadProducts(true)
+  },
+  chooseKeyword(e) {
+    const keyword = e.currentTarget.dataset.keyword || ''
+    this.setData({ searchValue: keyword }, () => this.loadProducts(true))
+  },
   clearSearch() { this.setData({ searchValue: '' }, () => this.loadProducts()) },
+  async clearHistory() {
+    try {
+      await api.clearSearchHistory()
+      this.setData({ searchHistory: [] })
+    } catch (error) { wx.showToast({ title: error.message, icon: 'none' }) }
+  },
   noop() {},
   selectCategory(e) { this.setData({ activeCategory: e.currentTarget.dataset.name }, () => this.loadProducts()) },
   setSort(e) {
@@ -48,7 +65,7 @@ Page({
   },
   toggleSpecial() { this.setData({ specialOnly: !this.data.specialOnly }, () => this.loadProducts()) },
   toggleMember() { this.setData({ memberOnly: !this.data.memberOnly }, () => this.loadProducts()) },
-  async loadProducts() {
+  async loadProducts(recordSearch = false) {
     const requestId = (this.productRequestId || 0) + 1
     this.productRequestId = requestId
     this.setData({ loading: true, errorMessage: '' })
@@ -76,6 +93,14 @@ Page({
         loaded: true,
         errorMessage: ''
       })
+      if (recordSearch && keyword) {
+        try {
+          await api.recordSearch(keyword)
+          this.loadSearchSuggestions()
+        } catch (searchError) {
+          console.warn('搜索记录保存失败：', searchError.message)
+        }
+      }
     } catch (error) {
       if (requestId !== this.productRequestId) return
       this.setData({
@@ -86,6 +111,15 @@ Page({
       })
       wx.showToast({ title: error.message, icon: 'none' })
     }
+  },
+  async loadSearchSuggestions() {
+    try {
+      const [history, hot] = await Promise.all([api.searchHistory(), api.hotSearches()])
+      this.setData({
+        searchHistory: (history || []).map(item => item.keyword),
+        hotKeywords: (hot || []).map(item => item.keyword)
+      })
+    } catch (error) { console.warn('搜索推荐加载失败：', error.message) }
   },
   retryProducts() { this.loadProducts() },
   showProduct(e) { wx.navigateTo({ url: `/pages/product-detail/product-detail?id=${e.currentTarget.dataset.id}` }) },

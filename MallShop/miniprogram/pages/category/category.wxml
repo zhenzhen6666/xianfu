@@ -1,9 +1,19 @@
 <view class="category-page">
-  <view class="category-top">
+  <view class="category-top {{!searchValue && (searchHistory.length || hotKeywords.length) ? 'with-suggestions' : ''}}">
     <view class="search-box row">
       <text>⌕</text>
-      <input value="{{searchValue}}" bindinput="bindSearch" placeholder="搜索想买的好物" />
+      <input value="{{searchValue}}" bindinput="bindSearch" bindconfirm="confirmSearch" confirm-type="search" placeholder="搜索想买的好物" />
       <text class="clear" wx:if="{{searchValue}}" bindtap="clearSearch">×</text>
+    </view>
+    <view class="search-suggestions" wx:if="{{!searchValue && (searchHistory.length || hotKeywords.length)}}">
+      <view class="suggestion-row" wx:if="{{searchHistory.length}}">
+        <view class="suggestion-title"><text>最近搜索</text><text class="history-clear" catchtap="clearHistory">清空</text></view>
+        <scroll-view scroll-x enhanced show-scrollbar="false"><view class="keyword-list"><text wx:for="{{searchHistory}}" wx:key="*this" data-keyword="{{item}}" bindtap="chooseKeyword">{{item}}</text></view></scroll-view>
+      </view>
+      <view class="suggestion-row" wx:if="{{hotKeywords.length}}">
+        <view class="suggestion-title"><text>热门搜索</text></view>
+        <scroll-view scroll-x enhanced show-scrollbar="false"><view class="keyword-list hot"><text wx:for="{{hotKeywords}}" wx:key="*this" data-keyword="{{item}}" bindtap="chooseKeyword">{{item}}</text></view></scroll-view>
+      </view>
     </view>
     <scroll-view class="filter-scroll" scroll-x enhanced show-scrollbar="false">
       <view class="filters">
@@ -16,7 +26,7 @@
     </scroll-view>
   </view>
 
-  <view class="catalog">
+  <view class="catalog {{!searchValue && (searchHistory.length || hotKeywords.length) ? 'with-suggestions' : ''}}">
     <scroll-view class="category-list" scroll-y enhanced show-scrollbar="false">
       <view class="category-item {{activeCategory === item ? 'active' : ''}}" wx:for="{{categories}}" wx:key="*this" data-name="{{item}}" bindtap="selectCategory">
         <text class="active-line"></text>{{item}}

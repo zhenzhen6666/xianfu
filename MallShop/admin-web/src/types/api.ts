@@ -295,3 +295,12 @@ export interface AuthSession {
   id: string; userId: number; nickname: string; mobile?: string; role: string; revoked: boolean
   expiresAt: string; lastSeenAt: string; ipAddress?: string; userAgent?: string; createdAt: string
 }
+
+export interface SearchKeywordStat {
+  keyword: string
+  searchCount: number
+  noResultCount: number
+  noResultRate: number
+  maxResultCount: number
+  lastSearchedAt: string
+}

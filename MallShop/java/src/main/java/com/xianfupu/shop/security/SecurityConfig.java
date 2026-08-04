@@ -32,6 +32,7 @@ public class SecurityConfig {
                                 "/api/auth/dev-admin-login", "/api/auth/refresh", "/api/auth/logout",
                                 "/api/payments/*/callback", "/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/catalog/**", "/api/home", "/api/config/delivery", "/api/activities/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/searches/hot").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/files/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

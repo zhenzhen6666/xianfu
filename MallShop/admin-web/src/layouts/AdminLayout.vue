@@ -5,6 +5,7 @@ import {
   Bell,
   Box,
   DataAnalysis,
+  Download,
   Fold,
   Goods,
   Grid,
@@ -51,6 +52,7 @@ const menuItems = [
   { path: '/after-sales', label: '售后处理', icon: Service },
   { path: '/marketing', label: '营销装修', icon: Promotion },
   { path: '/delivery', label: '配送设置', icon: Setting },
+  { path: '/data-center', label: '数据中心', icon: Download },
   { path: '/operations', label: '系统运维', icon: Operation },
 ]
 

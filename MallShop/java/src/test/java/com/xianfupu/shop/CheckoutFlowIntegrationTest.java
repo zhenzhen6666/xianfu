@@ -1,10 +1,12 @@
 package com.xianfupu.shop;
 
 import com.xianfupu.shop.admin.AdminService;
+import com.xianfupu.shop.admin.AdminDataService;
 import com.xianfupu.shop.admin.AdminOrderNotificationService;
 import com.xianfupu.shop.auth.AuthService;
 import com.xianfupu.shop.cart.CartService;
 import com.xianfupu.shop.catalog.CatalogService;
+import com.xianfupu.shop.catalog.SearchAnalyticsService;
 import com.xianfupu.shop.common.BusinessException;
 import com.xianfupu.shop.order.OrderService;
 import com.xianfupu.shop.payment.PaymentService;
@@ -18,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,6 +52,10 @@ class CheckoutFlowIntegrationTest {
     AfterSaleService afterSaleService;
     @Autowired
     CatalogService catalogService;
+    @Autowired
+    SearchAnalyticsService searchAnalyticsService;
+    @Autowired
+    AdminDataService adminDataService;
 
     @Test
     void completesCheckoutPaymentAndMemberRewardFlow() {
@@ -319,5 +326,48 @@ class CheckoutFlowIntegrationTest {
 
         adminService.deleteActivityProduct(adminId, activity.code(), "p2");
         adminService.deleteActivity(adminId, activity.code());
+    }
+
+    @Test
+    void recordsSearchAnalyticsAndExportsCoreBusinessData() {
+        AuthService.UserProfile user = authService.devLogin("13100002001", "搜索统计用户").user();
+        SearchAnalyticsService.SearchHistory matched = searchAnalyticsService.record(user.id(), "上海青");
+        SearchAnalyticsService.SearchHistory empty = searchAnalyticsService.record(
+                user.id(), "完全不存在的测试商品关键词");
+        searchAnalyticsService.record(user.id(), "上海青");
+
+        assertThat(matched.resultCount()).isGreaterThan(0);
+        assertThat(empty.resultCount()).isZero();
+        assertThat(searchAnalyticsService.history(user.id())).hasSize(2);
+        assertThat(searchAnalyticsService.hot(30, 10))
+                .anyMatch(item -> "上海青".equals(item.keyword()) && item.searchCount() >= 2);
+        assertThat(searchAnalyticsService.stats(30))
+                .anyMatch(item -> "完全不存在的测试商品关键词".equals(item.keyword())
+                        && item.noResultCount() == 1
+                        && item.noResultRate().compareTo(BigDecimal.ONE) == 0);
+        searchAnalyticsService.clearHistory(user.id());
+        assertThat(searchAnalyticsService.history(user.id())).isEmpty();
+        assertThat(searchAnalyticsService.stats(30))
+                .anyMatch(item -> "完全不存在的测试商品关键词".equals(item.keyword()));
+
+        AddressService.AddressView address = addressService.create(user.id(),
+                new AddressService.AddressCommand("搜索统计用户", "13100002001", "导出测试地址",
+                        null, null, BigDecimal.ONE, true));
+        cartService.add(user.id(), "p3", 1, null);
+        OrderService.OrderDetail order = orderService.create(user.id(),
+                new OrderService.OrderCommand(address.id(), null, 0, null, "data-export-test"));
+        long adminId = authService.devAdminLogin("TestAdminSecret", "数据管理员").user().id();
+
+        assertCsv(adminDataService.export(adminId, "orders"), "订单号", order.orderNo());
+        assertCsv(adminDataService.export(adminId, "products"), "商品编码", "p3");
+        assertCsv(adminDataService.export(adminId, "users"), "用户ID", "搜索统计用户");
+        assertCsv(adminDataService.export(adminId, "coupons"), "优惠券编码", "NEW5");
+        orderService.cancel(user.id(), order.orderNo(), "完成数据导出测试");
+    }
+
+    private void assertCsv(AdminDataService.ExportFile file, String header, String expectedValue) {
+        String csv = new String(file.content(), StandardCharsets.UTF_8);
+        assertThat(csv).startsWith("\uFEFF").contains(header).contains(expectedValue);
+        assertThat(file.rowCount()).isGreaterThan(0);
     }
 }

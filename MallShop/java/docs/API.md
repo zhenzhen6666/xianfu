@@ -12,6 +12,9 @@
 | 商品 | `GET /catalog/categories` | 分类列表 |
 | 商品 | `GET /catalog/products` | 搜索、筛选、排序、分页 |
 | 商品 | `GET /catalog/products/{id}` | 商品详情；`id` 与现有小程序的 `p1`～`p8` 一致 |
+| 搜索 | `GET /searches/hot` | 近期开启结果的热门关键词 |
+| 搜索 | `GET/DELETE /searches/history` | 查询或清空当前用户搜索历史 |
+| 搜索 | `POST /searches` | 确认搜索并由服务端记录真实结果数 |
 | 购物车 | `GET /cart` | 购物车和配送费预估 |
 | 购物车 | `POST /cart/items` | 加购 |
 | 购物车 | `PATCH /cart/items/{id}` | 修改数量或选中状态 |
@@ -116,5 +119,7 @@
 - `GET/POST /admin/coupons`：查询或创建满减/无门槛优惠券
 - `POST /admin/coupons/{couponCode}/issues`：按已注册手机号发放到用户券账户
 - `GET/PATCH /admin/after-sales...`
+- `GET /admin/data/exports/{type}`：导出 `orders`、`products`、`users`、`coupons` CSV
+- `GET /admin/data/search-keywords?days=30`：关键词搜索次数、无结果次数和无结果率
 
 所有关键管理操作都会写入 `admin_audit_logs`。
