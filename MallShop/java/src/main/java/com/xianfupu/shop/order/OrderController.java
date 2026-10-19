@@ -37,24 +37,24 @@ public class OrderController {
     }
 
     @GetMapping
-    List<OrderService.OrderSummary> list(@RequestParam(defaultValue = "ALL") String status,
-                                         @RequestParam(defaultValue = "0") int page,
-                                         @RequestParam(defaultValue = "20") int size) {
+    List<OrderService.OrderSummary> list(@RequestParam(name = "status", defaultValue = "ALL") String status,
+                                         @RequestParam(name = "page", defaultValue = "0") int page,
+                                         @RequestParam(name = "size", defaultValue = "20") int size) {
         return orderService.list(CurrentUser.id(), status, page, size);
     }
 
     @GetMapping("/{orderNo}")
-    OrderService.OrderDetail detail(@PathVariable String orderNo) {
+    OrderService.OrderDetail detail(@PathVariable("orderNo") String orderNo) {
         return orderService.detail(CurrentUser.id(), orderNo);
     }
 
     @PostMapping("/{orderNo}/cancel")
-    OrderService.OrderDetail cancel(@PathVariable String orderNo, @RequestBody(required = false) CancelRequest request) {
+    OrderService.OrderDetail cancel(@PathVariable("orderNo") String orderNo, @RequestBody(required = false) CancelRequest request) {
         return orderService.cancel(CurrentUser.id(), orderNo, request == null ? null : request.reason());
     }
 
     @PostMapping("/{orderNo}/confirm")
-    OrderService.OrderDetail confirm(@PathVariable String orderNo) {
+    OrderService.OrderDetail confirm(@PathVariable("orderNo") String orderNo) {
         return orderService.confirm(CurrentUser.id(), orderNo);
     }
 

@@ -64,7 +64,7 @@ public class FileUploadController {
     }
 
     @GetMapping("/api/files/{filename}")
-    ResponseEntity<Resource> file(@PathVariable String filename) {
+    ResponseEntity<Resource> file(@PathVariable("filename") String filename) {
         if (!filename.matches("[a-zA-Z0-9._-]+")) {
             throw BusinessException.notFound("FILE_NOT_FOUND", "图片不存在");
         }

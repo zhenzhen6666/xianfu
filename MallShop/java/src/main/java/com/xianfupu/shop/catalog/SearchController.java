@@ -27,8 +27,8 @@ public class SearchController {
 
     @GetMapping("/hot")
     List<SearchAnalyticsService.HotKeyword> hot(
-            @RequestParam(defaultValue = "30") int days,
-            @RequestParam(defaultValue = "10") int limit) {
+            @RequestParam(name = "days", defaultValue = "30") int days,
+            @RequestParam(name = "limit", defaultValue = "10") int limit) {
         return service.hot(days, limit);
     }
 

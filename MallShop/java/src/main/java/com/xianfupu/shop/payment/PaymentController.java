@@ -22,13 +22,13 @@ public class PaymentController {
     }
 
     @PostMapping("/orders/{orderNo}/pay")
-    PaymentService.PaymentView create(@PathVariable String orderNo,
+    PaymentService.PaymentView create(@PathVariable("orderNo") String orderNo,
                                       @RequestBody(required = false) CreatePaymentRequest request) {
         return paymentService.create(CurrentUser.id(), orderNo, request == null ? null : request.channel());
     }
 
     @GetMapping("/orders/{orderNo}/payments")
-    List<PaymentService.PaymentView> list(@PathVariable String orderNo) {
+    List<PaymentService.PaymentView> list(@PathVariable("orderNo") String orderNo) {
         return paymentService.orderPayments(CurrentUser.id(), orderNo);
     }
 

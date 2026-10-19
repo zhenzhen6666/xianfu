@@ -23,7 +23,7 @@ public class AdminDataController {
     }
 
     @GetMapping("/exports/{type}")
-    ResponseEntity<byte[]> export(@PathVariable String type) {
+    ResponseEntity<byte[]> export(@PathVariable("type") String type) {
         AdminDataService.ExportFile file = service.export(CurrentUser.id(), type);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
@@ -35,7 +35,7 @@ public class AdminDataController {
 
     @GetMapping("/search-keywords")
     List<SearchAnalyticsService.KeywordStat> searchKeywordStats(
-            @RequestParam(defaultValue = "30") int days) {
+            @RequestParam(name = "days", defaultValue = "30") int days) {
         return service.searchKeywordStats(days);
     }
 }

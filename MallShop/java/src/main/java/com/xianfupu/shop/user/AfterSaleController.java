@@ -37,7 +37,7 @@ public class AfterSaleController {
     }
 
     @GetMapping("/{afterSaleNo}")
-    AfterSaleService.AfterSaleView get(@PathVariable String afterSaleNo) {
+    AfterSaleService.AfterSaleView get(@PathVariable("afterSaleNo") String afterSaleNo) {
         return service.get(CurrentUser.id(), afterSaleNo);
     }
 

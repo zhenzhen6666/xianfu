@@ -42,13 +42,13 @@ public class AddressController {
     }
 
     @PutMapping("/{id}")
-    AddressService.AddressView update(@PathVariable long id, @Valid @RequestBody AddressRequest request) {
+    AddressService.AddressView update(@PathVariable("id") long id, @Valid @RequestBody AddressRequest request) {
         return addressService.update(CurrentUser.id(), id, request.toCommand());
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void delete(@PathVariable long id) {
+    void delete(@PathVariable("id") long id) {
         addressService.delete(CurrentUser.id(), id);
     }
 

@@ -51,7 +51,7 @@ public class AdminController {
     }
 
     @GetMapping("/products")
-    List<AdminService.AdminProduct> products(@RequestParam(defaultValue = "ALL") String status) {
+    List<AdminService.AdminProduct> products(@RequestParam(name = "status", defaultValue = "ALL") String status) {
         return service.products(status);
     }
 
@@ -62,33 +62,33 @@ public class AdminController {
     }
 
     @PutMapping("/products/{productCode}")
-    AdminService.AdminProduct updateProduct(@PathVariable String productCode,
+    AdminService.AdminProduct updateProduct(@PathVariable("productCode") String productCode,
                                             @Valid @RequestBody ProductRequest request) {
         return service.saveProduct(CurrentUser.id(), productCode, request.toCommand());
     }
 
     @DeleteMapping("/products/{productCode}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void deleteProduct(@PathVariable String productCode) {
+    void deleteProduct(@PathVariable("productCode") String productCode) {
         service.deleteProduct(CurrentUser.id(), productCode);
     }
 
     @GetMapping("/products/{productCode}/skus")
-    List<AdminService.AdminSku> productSkus(@PathVariable String productCode) {
+    List<AdminService.AdminSku> productSkus(@PathVariable("productCode") String productCode) {
         return service.productSkus(productCode);
     }
 
     @PutMapping("/products/{productCode}/skus")
-    List<AdminService.AdminSku> saveProductSkus(@PathVariable String productCode,
+    List<AdminService.AdminSku> saveProductSkus(@PathVariable("productCode") String productCode,
                                                 @Valid @RequestBody ProductSkusRequest request) {
         return service.saveProductSkus(CurrentUser.id(), productCode,
                 request.skus().stream().map(SkuRequest::toCommand).toList());
     }
 
     @GetMapping("/orders")
-    List<AdminService.AdminOrder> orders(@RequestParam(defaultValue = "ALL") String status,
-                                         @RequestParam(defaultValue = "0") int page,
-                                         @RequestParam(defaultValue = "20") int size) {
+    List<AdminService.AdminOrder> orders(@RequestParam(name = "status", defaultValue = "ALL") String status,
+                                         @RequestParam(name = "page", defaultValue = "0") int page,
+                                         @RequestParam(name = "size", defaultValue = "20") int size) {
         return service.orders(status, page, size);
     }
 
@@ -103,12 +103,12 @@ public class AdminController {
     }
 
     @PatchMapping("/order-notifications/{orderNo}/read")
-    AdminOrderNotificationService.OrderNotificationView readOrderNotification(@PathVariable String orderNo) {
+    AdminOrderNotificationService.OrderNotificationView readOrderNotification(@PathVariable("orderNo") String orderNo) {
         return orderNotifications.markRead(orderNo);
     }
 
     @PatchMapping("/order-notifications/{orderNo}/accept")
-    AdminOrderNotificationService.OrderNotificationView acceptOrderNotification(@PathVariable String orderNo) {
+    AdminOrderNotificationService.OrderNotificationView acceptOrderNotification(@PathVariable("orderNo") String orderNo) {
         return orderNotifications.accept(orderNo);
     }
 
@@ -120,18 +120,18 @@ public class AdminController {
     }
 
     @GetMapping("/orders/{orderNo}")
-    OrderService.OrderDetail order(@PathVariable String orderNo) {
+    OrderService.OrderDetail order(@PathVariable("orderNo") String orderNo) {
         return service.order(orderNo);
     }
 
     @PatchMapping("/orders/{orderNo}/status")
-    OrderService.OrderDetail updateOrderStatus(@PathVariable String orderNo,
+    OrderService.OrderDetail updateOrderStatus(@PathVariable("orderNo") String orderNo,
                                                @Valid @RequestBody StatusRequest request) {
         return service.updateOrderStatus(CurrentUser.id(), orderNo, request.status());
     }
 
     @PostMapping("/orders/{orderNo}/refund")
-    PaymentService.PaymentView refund(@PathVariable String orderNo,
+    PaymentService.PaymentView refund(@PathVariable("orderNo") String orderNo,
                                       @Valid @RequestBody RefundRequest request) {
         return service.refund(CurrentUser.id(), orderNo, request.amount(), request.reason());
     }
@@ -147,13 +147,13 @@ public class AdminController {
     }
 
     @GetMapping("/users")
-    List<AdminService.AdminUser> users(@RequestParam(required = false) String keyword) {
+    List<AdminService.AdminUser> users(@RequestParam(name = "keyword", required = false) String keyword) {
         return service.users(keyword);
     }
 
     @PatchMapping("/users/{userId}/status")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void userStatus(@PathVariable long userId, @Valid @RequestBody StatusRequest request) {
+    void userStatus(@PathVariable("userId") long userId, @Valid @RequestBody StatusRequest request) {
         service.setUserStatus(CurrentUser.id(), userId, request.status());
     }
 
@@ -169,55 +169,55 @@ public class AdminController {
     }
 
     @PutMapping("/coupons/{couponCode}")
-    AdminService.AdminCoupon updateCoupon(@PathVariable String couponCode,
+    AdminService.AdminCoupon updateCoupon(@PathVariable("couponCode") String couponCode,
                                           @Valid @RequestBody CouponRequest request) {
         return service.updateCoupon(CurrentUser.id(), couponCode, request.toCommand());
     }
 
     @PatchMapping("/coupons/{couponCode}/status")
-    AdminService.AdminCoupon updateCouponStatus(@PathVariable String couponCode,
+    AdminService.AdminCoupon updateCouponStatus(@PathVariable("couponCode") String couponCode,
                                                 @Valid @RequestBody EnabledRequest request) {
         return service.setCouponEnabled(CurrentUser.id(), couponCode, request.enabled());
     }
 
     @DeleteMapping("/coupons/{couponCode}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void deleteCoupon(@PathVariable String couponCode) {
+    void deleteCoupon(@PathVariable("couponCode") String couponCode) {
         service.deleteCoupon(CurrentUser.id(), couponCode);
     }
 
     @PostMapping("/coupons/{couponCode}/issues")
     @ResponseStatus(HttpStatus.CREATED)
-    AdminService.CouponIssueResult issueCoupon(@PathVariable String couponCode,
+    AdminService.CouponIssueResult issueCoupon(@PathVariable("couponCode") String couponCode,
                                                @Valid @RequestBody CouponIssueRequest request) {
         return service.issueCoupon(CurrentUser.id(), couponCode, request.mobile());
     }
 
     @PostMapping("/coupons/{couponCode}/batch-issues")
-    AdminService.CouponBatchResult batchIssueCoupon(@PathVariable String couponCode,
+    AdminService.CouponBatchResult batchIssueCoupon(@PathVariable("couponCode") String couponCode,
                                                     @Valid @RequestBody CouponBatchIssueRequest request) {
         return service.batchIssueCoupon(CurrentUser.id(), couponCode, request.mobiles());
     }
 
     @GetMapping("/coupon-issue-records")
     List<AdminService.CouponIssueRecordView> couponIssueRecords(
-            @RequestParam(required = false) String couponCode) {
+            @RequestParam(name = "couponCode", required = false) String couponCode) {
         return service.couponIssueRecords(couponCode);
     }
 
     @GetMapping("/after-sales")
-    List<AdminService.AfterSaleAdminView> afterSales(@RequestParam(defaultValue = "ALL") String status) {
+    List<AdminService.AfterSaleAdminView> afterSales(@RequestParam(name = "status", defaultValue = "ALL") String status) {
         return service.afterSales(status);
     }
 
     @GetMapping("/after-sales/{afterSaleNo}")
-    AfterSaleService.AfterSaleView afterSale(@PathVariable String afterSaleNo) {
+    AfterSaleService.AfterSaleView afterSale(@PathVariable("afterSaleNo") String afterSaleNo) {
         return afterSaleService.adminGet(afterSaleNo);
     }
 
     @PatchMapping("/after-sales/{afterSaleNo}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void updateAfterSale(@PathVariable String afterSaleNo, @Valid @RequestBody AfterSaleUpdateRequest request) {
+    void updateAfterSale(@PathVariable("afterSaleNo") String afterSaleNo, @Valid @RequestBody AfterSaleUpdateRequest request) {
         service.updateAfterSale(CurrentUser.id(), afterSaleNo, request.status(), request.reply(),
                 request.refundAmount());
     }
@@ -234,14 +234,14 @@ public class AdminController {
     }
 
     @PutMapping("/categories/{code}")
-    List<AdminService.AdminCategory> saveCategory(@PathVariable String code,
+    List<AdminService.AdminCategory> saveCategory(@PathVariable("code") String code,
                                                   @Valid @RequestBody CategoryRequest request) {
         return service.saveCategory(CurrentUser.id(), code, request.toCommand());
     }
 
     @DeleteMapping("/categories/{code}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void deleteCategory(@PathVariable String code) {
+    void deleteCategory(@PathVariable("code") String code) {
         service.deleteCategory(CurrentUser.id(), code);
     }
 
@@ -256,14 +256,14 @@ public class AdminController {
     }
 
     @PutMapping("/home-modules/{id}")
-    List<AdminService.AdminHomeModule> updateHomeModule(@PathVariable long id,
+    List<AdminService.AdminHomeModule> updateHomeModule(@PathVariable("id") long id,
                                                         @Valid @RequestBody HomeModuleRequest request) {
         return service.saveHomeModule(CurrentUser.id(), id, request.toCommand());
     }
 
     @DeleteMapping("/home-modules/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void deleteHomeModule(@PathVariable long id) {
+    void deleteHomeModule(@PathVariable("id") long id) {
         service.deleteHomeModule(CurrentUser.id(), id);
     }
 
@@ -279,25 +279,25 @@ public class AdminController {
     }
 
     @PutMapping("/activities/{code}")
-    AdminService.AdminActivity updateActivity(@PathVariable String code,
+    AdminService.AdminActivity updateActivity(@PathVariable("code") String code,
                                               @Valid @RequestBody ActivityRequest request) {
         return service.updateActivity(CurrentUser.id(), code, request.toCommand());
     }
 
     @DeleteMapping("/activities/{code}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void deleteActivity(@PathVariable String code) {
+    void deleteActivity(@PathVariable("code") String code) {
         service.deleteActivity(CurrentUser.id(), code);
     }
 
     @GetMapping("/activities/{code}/products")
-    List<AdminService.AdminActivityProduct> activityProducts(@PathVariable String code) {
+    List<AdminService.AdminActivityProduct> activityProducts(@PathVariable("code") String code) {
         return service.activityProducts(code);
     }
 
     @PutMapping("/activities/{code}/products/{productCode}")
     AdminService.AdminActivityProduct saveActivityProduct(
-            @PathVariable String code, @PathVariable String productCode,
+            @PathVariable("code") String code, @PathVariable("productCode") String productCode,
             @Valid @RequestBody ActivityProductRequest request) {
         return service.saveActivityProduct(
                 CurrentUser.id(), code, productCode, request.toCommand());
@@ -305,7 +305,7 @@ public class AdminController {
 
     @DeleteMapping("/activities/{code}/products/{productCode}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void deleteActivityProduct(@PathVariable String code, @PathVariable String productCode) {
+    void deleteActivityProduct(@PathVariable("code") String code, @PathVariable("productCode") String productCode) {
         service.deleteActivityProduct(CurrentUser.id(), code, productCode);
     }
 

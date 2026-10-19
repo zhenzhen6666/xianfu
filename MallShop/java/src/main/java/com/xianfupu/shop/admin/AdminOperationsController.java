@@ -27,35 +27,35 @@ public class AdminOperationsController {
     }
 
     @GetMapping("/errors")
-    List<MonitoringService.ErrorLogView> errors(@RequestParam(defaultValue = "100") int limit) {
+    List<MonitoringService.ErrorLogView> errors(@RequestParam(name = "limit", defaultValue = "100") int limit) {
         return monitoring.errors(limit);
     }
 
     @GetMapping("/alerts")
-    List<MonitoringService.AlertView> alerts(@RequestParam(defaultValue = "ALL") String status,
-                                             @RequestParam(defaultValue = "100") int limit) {
+    List<MonitoringService.AlertView> alerts(@RequestParam(name = "status", defaultValue = "ALL") String status,
+                                             @RequestParam(name = "limit", defaultValue = "100") int limit) {
         return monitoring.alerts(status, limit);
     }
 
     @PatchMapping("/alerts/{id}/acknowledge")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void acknowledge(@PathVariable long id) {
+    void acknowledge(@PathVariable("id") long id) {
         monitoring.acknowledge(id, CurrentUser.id());
     }
 
     @GetMapping("/payment-callbacks")
-    List<MonitoringService.PaymentCallbackView> callbacks(@RequestParam(defaultValue = "100") int limit) {
+    List<MonitoringService.PaymentCallbackView> callbacks(@RequestParam(name = "limit", defaultValue = "100") int limit) {
         return monitoring.callbacks(limit);
     }
 
     @GetMapping("/sessions")
-    List<AuthSessionService.SessionView> sessions(@RequestParam(defaultValue = "ADMIN") String role) {
+    List<AuthSessionService.SessionView> sessions(@RequestParam(name = "role", defaultValue = "ADMIN") String role) {
         return sessions.list(role);
     }
 
     @DeleteMapping("/sessions/{sessionId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void revoke(@PathVariable String sessionId) {
+    void revoke(@PathVariable("sessionId") String sessionId) {
         sessions.revoke(sessionId);
     }
 }

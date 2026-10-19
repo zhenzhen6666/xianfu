@@ -41,6 +41,8 @@ docker compose up -d mysql
 ./mvnw spring-boot:run
 ```
 
+如果 IDE 启动后接口报 `Name for argument ... parameter name information not available`，请重新加载 Maven 工程，清理旧编译产物后再启动。项目默认启用 `-parameters`，接口的查询参数和路径参数也显式声明了名称，可兼容未保留参数名的编译环境。可在 `java` 目录执行 `./mvnw clean spring-boot:run` 重新编译并运行。
+
 首次启动时 Flyway 会自动执行 `src/main/resources/db/migration` 下的脚本。默认本地连接参数为：
 
 - 数据库：`xianfupu`

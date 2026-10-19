@@ -36,7 +36,7 @@ public class CartController {
     }
 
     @PatchMapping("/items/{productCode}")
-    CartService.CartView update(@PathVariable String productCode, @Valid @RequestBody UpdateItemRequest request) {
+    CartService.CartView update(@PathVariable("productCode") String productCode, @Valid @RequestBody UpdateItemRequest request) {
         return cartService.update(CurrentUser.id(), productCode, request.quantity(), request.selected());
     }
 
@@ -46,7 +46,7 @@ public class CartController {
     }
 
     @DeleteMapping("/items/{productCode}")
-    CartService.CartView remove(@PathVariable String productCode) {
+    CartService.CartView remove(@PathVariable("productCode") String productCode) {
         return cartService.remove(CurrentUser.id(), productCode);
     }
 

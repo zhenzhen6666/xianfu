@@ -47,12 +47,12 @@ public class UserBenefitController {
     }
 
     @GetMapping("/coupons")
-    List<UserBenefitService.CouponView> coupons(@RequestParam(defaultValue = "ALL") String status) {
+    List<UserBenefitService.CouponView> coupons(@RequestParam(name = "status", defaultValue = "ALL") String status) {
         return benefitService.coupons(CurrentUser.id(), status);
     }
 
     @PostMapping("/coupons/{code}/claim")
-    UserBenefitService.CouponView claim(@PathVariable String code) {
+    UserBenefitService.CouponView claim(@PathVariable("code") String code) {
         return benefitService.claim(CurrentUser.id(), code);
     }
 
@@ -73,13 +73,13 @@ public class UserBenefitController {
 
     @PostMapping("/favorites/{productCode}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void favorite(@PathVariable String productCode) {
+    void favorite(@PathVariable("productCode") String productCode) {
         benefitService.favorite(CurrentUser.id(), productCode);
     }
 
     @DeleteMapping("/favorites/{productCode}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void unfavorite(@PathVariable String productCode) {
+    void unfavorite(@PathVariable("productCode") String productCode) {
         benefitService.unfavorite(CurrentUser.id(), productCode);
     }
 

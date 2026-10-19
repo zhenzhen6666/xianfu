@@ -24,18 +24,18 @@ public class CatalogController {
 
     @GetMapping("/products")
     CatalogService.ProductPage products(
-            @RequestParam(required = false) String category,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(defaultValue = "default") String sort,
-            @RequestParam(defaultValue = "false") boolean specialOnly,
-            @RequestParam(defaultValue = "false") boolean memberOnly,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(name = "category", required = false) String category,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "sort", defaultValue = "default") String sort,
+            @RequestParam(name = "specialOnly", defaultValue = "false") boolean specialOnly,
+            @RequestParam(name = "memberOnly", defaultValue = "false") boolean memberOnly,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
         return catalogService.products(category, keyword, sort, specialOnly, memberOnly, page, size);
     }
 
     @GetMapping("/products/{productCode}")
-    CatalogService.ProductDetail product(@PathVariable String productCode) {
+    CatalogService.ProductDetail product(@PathVariable("productCode") String productCode) {
         return catalogService.productDetail(productCode);
     }
 }

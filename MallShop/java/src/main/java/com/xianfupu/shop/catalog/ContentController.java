@@ -61,7 +61,7 @@ public class ContentController {
     }
 
     @GetMapping("/activities/{code}")
-    ActivityDetail activity(@PathVariable String code) {
+    ActivityDetail activity(@PathVariable("code") String code) {
         ActivityView activity = jdbc.sql("""
                 SELECT code, name, activity_type, description, starts_at, ends_at
                 FROM activities WHERE code = :code AND enabled = TRUE
