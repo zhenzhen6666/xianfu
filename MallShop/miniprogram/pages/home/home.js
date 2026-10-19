@@ -1,5 +1,6 @@
 const api = require('../../utils/api')
 const adapters = require('../../utils/adapters')
+const { resolveApiFileUrl } = require('../../utils/config')
 
 const DEFAULT_QUICKS = [
   { icon: '¥0.01', name: '一分专享', theme: 'mint', type: 'penny' },
@@ -64,7 +65,11 @@ Page({
           ? quickItems.map((item, index) => Object.assign({}, DEFAULT_QUICKS[index % DEFAULT_QUICKS.length], item))
           : DEFAULT_QUICKS,
         zones: !activityZone ? [] : Array.isArray(zoneItems)
-          ? zoneItems.map((item, index) => Object.assign({}, DEFAULT_ZONES[index % DEFAULT_ZONES.length], item))
+          ? zoneItems.map((item, index) => {
+            const zone = Object.assign({}, DEFAULT_ZONES[index % DEFAULT_ZONES.length], item)
+            zone.image = resolveApiFileUrl(zone.image)
+            return zone
+          })
           : DEFAULT_ZONES,
         loading: false
       })

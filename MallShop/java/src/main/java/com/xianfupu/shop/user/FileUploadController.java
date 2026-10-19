@@ -11,7 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -40,13 +39,18 @@ public class FileUploadController {
         return storeImage(file);
     }
 
+    @PostMapping(value = "/api/admin/uploads/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    UploadResult uploadAdminImage(@RequestParam("file") MultipartFile file) {
+        return storeImage(file);
+    }
+
     private UploadResult storeImage(MultipartFile file) {
         if (file.isEmpty() || file.getSize() > 5 * 1024 * 1024) {
             throw BusinessException.badRequest("INVALID_IMAGE", "图片不能为空且不能超过 5MB");
         }
         String contentType = file.getContentType();
         if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
-            throw BusinessException.badRequest("INVALID_IMAGE", "仅支持图片凭证");
+            throw BusinessException.badRequest("INVALID_IMAGE", "仅支持图片文件");
         }
         String extension = extension(file.getOriginalFilename());
         String filename = UUID.randomUUID().toString().replace("-", "") + extension;

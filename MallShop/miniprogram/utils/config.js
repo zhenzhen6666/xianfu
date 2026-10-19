@@ -21,8 +21,8 @@ function setApiBaseUrl(value) {
 }
 
 function resolveApiFileUrl(value) {
-  if (!value || /^https?:\/\//.test(value)) return value || ''
-  return `${getApiBaseUrl().replace(/\/api$/, '')}${value}`
+  if (!value || !value.startsWith('/api/files/')) return value || ''
+  return `${getApiBaseUrl()}${value.slice(4)}`
 }
 
 module.exports = {

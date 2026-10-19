@@ -1,10 +1,12 @@
+const { resolveApiFileUrl } = require('./config')
+
 function money(value) { return Number(value || 0).toFixed(2) }
 
 function product(item) {
   if (!item) return null
   return Object.assign({}, item, {
     id: item.id || item.productCode,
-    image: item.image || '',
+    image: resolveApiFileUrl(item.image || item.imageUrl || ''),
     price: money(item.price),
     original: money(item.originalPrice != null ? item.originalPrice : item.original),
     member: money(item.memberPrice != null ? item.memberPrice : item.member),

@@ -38,9 +38,13 @@ services:
       DEV_ADMIN_SECRET: ${DEV_ADMIN_SECRET:-Admin@123456}
       WECHAT_APP_ID: ${WECHAT_APP_ID:-}
       WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:-}
+      UPLOAD_DIR: /app/uploads
       TZ: Asia/Shanghai
     ports:
       - "8080:8080"
+    volumes:
+      - xianfupu_uploads:/app/uploads
 
 volumes:
   xianfupu_mysql_data:
+  xianfupu_uploads:

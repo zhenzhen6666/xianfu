@@ -35,6 +35,11 @@ export const adminApi = {
   login: (nickname: string, secret: string) => data<LoginResult>(http.post('/auth/dev-admin-login', { nickname, secret })),
   logout: (refreshToken: string) => data(http.post('/auth/logout', { refreshToken })),
   dashboard: () => data<Dashboard>(http.get('/admin/dashboard')),
+  uploadImage: (file: File, signal?: AbortSignal) => {
+    const form = new FormData()
+    form.append('file', file)
+    return data<{ url: string }>(http.post('/admin/uploads/images', form, { timeout: 60000, signal }))
+  },
   products: (status = 'ALL') => data<Product[]>(http.get('/admin/products', { params: { status } })),
   createProduct: (payload: ProductPayload) => data<Product>(http.post('/admin/products', payload)),
   updateProduct: (code: string, payload: ProductPayload) => data<Product>(http.put(`/admin/products/${code}`, payload)),

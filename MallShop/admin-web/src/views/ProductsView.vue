@@ -5,11 +5,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi } from '../api/admin'
 import PageToolbar from '../components/PageToolbar.vue'
 import StatusTag from '../components/StatusTag.vue'
+import ImageUpload from '../components/ImageUpload.vue'
 import type { Category, Product, ProductPayload, ProductSku } from '../types/api'
 import { dateTime, money } from '../utils/format'
+import { imageUrl } from '../utils/image'
 
 const loading = ref(false)
 const saving = ref(false)
+const imageUploading = ref(false)
 const dialogOpen = ref(false)
 const editingCode = ref('')
 const status = ref('ALL')
@@ -58,6 +61,7 @@ function openEdit(row: Product) {
 }
 
 async function save() {
+  if (imageUploading.value) return ElMessage.warning('请等待图片上传完成')
   if (!form.categoryCode || !form.name.trim() || !form.spec.trim()) return ElMessage.warning('请填写分类、商品名和规格')
   saving.value = true
   try {
@@ -133,7 +137,7 @@ onMounted(load)
     <article class="content-card table-card" v-loading="loading">
       <el-table :data="filtered" class="clean-table">
         <el-table-column label="商品" min-width="280">
-          <template #default="{ row }"><div class="product-cell"><div class="product-image"><img v-if="row.imageUrl" :src="row.imageUrl" alt="" /><span v-else>{{ row.name.slice(0, 1) }}</span></div><div><strong>{{ row.name }}</strong><small>{{ row.productCode }} · {{ row.spec }}</small></div></div></template>
+          <template #default="{ row }"><div class="product-cell"><div class="product-image"><img v-if="row.imageUrl" :src="imageUrl(row.imageUrl)" alt="" /><span v-else>{{ row.name.slice(0, 1) }}</span></div><div><strong>{{ row.name }}</strong><small>{{ row.productCode }} · {{ row.spec }}</small></div></div></template>
         </el-table-column>
         <el-table-column prop="categoryName" label="分类" width="125" />
         <el-table-column label="价格" width="150"><template #default="{ row }"><div class="two-line"><strong>{{ money(row.salePrice) }}</strong><small>会员 {{ money(row.memberPrice) }}</small></div></template></el-table-column>
@@ -144,8 +148,8 @@ onMounted(load)
       </el-table>
     </article>
 
-    <el-dialog v-model="dialogOpen" :title="editingCode ? '编辑商品' : '新增商品'" width="720px" destroy-on-close>
-      <el-form label-position="top" class="form-grid">
+    <el-dialog v-model="dialogOpen" :title="editingCode ? '编辑商品' : '新增商品'" width="720px" destroy-on-close :close-on-click-modal="!imageUploading && !saving" :close-on-press-escape="!imageUploading && !saving" :show-close="!imageUploading && !saving">
+      <el-form label-position="top" class="form-grid" :disabled="saving">
         <el-form-item label="商品名称" class="span-2"><el-input v-model="form.name" maxlength="120" show-word-limit /></el-form-item>
         <el-form-item label="商品分类"><el-select v-model="form.categoryCode" filterable><el-option v-for="item in categories" :key="item.code" :label="item.name" :value="item.code" /></el-select></el-form-item>
         <el-form-item label="规格"><el-input v-model="form.spec" placeholder="例：500g/份" /></el-form-item>
@@ -157,10 +161,10 @@ onMounted(load)
         <el-form-item label="状态"><el-select v-model="form.status"><el-option label="销售中" value="ON_SALE" /><el-option label="已下架" value="OFF_SHELF" /></el-select></el-form-item>
         <el-form-item label="排序"><el-input-number v-model="form.sortOrder" :min="0" /></el-form-item>
         <el-form-item label="副标题" class="span-2"><el-input v-model="form.subtitle" maxlength="255" /></el-form-item>
-        <el-form-item label="商品图片 URL" class="span-2"><el-input v-model="form.imageUrl" /></el-form-item>
+        <el-form-item label="商品图片" class="span-2"><ImageUpload v-model="form.imageUrl" :disabled="saving" @uploading="imageUploading = $event" /></el-form-item>
         <el-form-item label="商品描述" class="span-2"><el-input v-model="form.description" type="textarea" :rows="3" /></el-form-item>
       </el-form>
-      <template #footer><el-button @click="dialogOpen = false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存商品</el-button></template>
+      <template #footer><el-button :disabled="imageUploading || saving" @click="dialogOpen = false">取消</el-button><el-button type="primary" :loading="saving" :disabled="imageUploading" @click="save">保存商品</el-button></template>
     </el-dialog>
     <el-dialog v-model="skuOpen" :title="`${skuProduct?.name || ''} · 多规格设置`" width="900px">
       <div class="dialog-notice">每个规格可独立设置售价、会员价和库存。已被订单引用的旧规格会保留记录但停止展示。</div>

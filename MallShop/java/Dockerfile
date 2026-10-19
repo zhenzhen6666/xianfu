@@ -8,6 +8,7 @@ RUN mvn -B -q clean package -DskipTests
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 RUN useradd --system --uid 10001 appuser
+RUN mkdir -p /app/uploads && chown appuser /app/uploads
 COPY --from=build /workspace/target/xianfupu-backend-1.0.0.jar app.jar
 USER appuser
 EXPOSE 8080

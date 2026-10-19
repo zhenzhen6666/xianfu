@@ -4,6 +4,7 @@ import { Delete, Edit, Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi } from '../api/admin'
 import PageToolbar from '../components/PageToolbar.vue'
+import ImageUpload from '../components/ImageUpload.vue'
 import type { Activity, ActivityProduct, ActivityProductPayload, HomeModule, Product } from '../types/api'
 import { dateTime, money } from '../utils/format'
 
@@ -26,6 +27,11 @@ interface ZoneItem {
 const activeTab = ref('modules')
 const loading = ref(false)
 const saving = ref(false)
+const uploadingImages = ref(0)
+
+function trackUpload(uploading: boolean) {
+  uploadingImages.value += uploading ? 1 : -1
+}
 const dialogOpen = ref(false)
 const dialogType = ref<'module' | 'activity'>('module')
 const modules = ref<HomeModule[]>([])
@@ -390,6 +396,7 @@ async function deleteModule(item: HomeModule) {
 }
 
 async function save() {
+  if (uploadingImages.value) return ElMessage.warning('请等待图片上传完成')
   saving.value = true
   try {
     if (dialogType.value === 'module') {
@@ -471,11 +478,11 @@ onMounted(load)
       </el-tabs>
     </article>
 
-    <el-dialog v-model="dialogOpen" :title="dialogType === 'module' ? (moduleForm.id ? `编辑${moduleLabel(moduleForm.moduleType)}` : '新增首页组件') : (activityForm.code ? '编辑营销活动' : '新增营销活动')" width="760px">
-      <el-form v-if="dialogType === 'module'" label-position="top">
+    <el-dialog v-model="dialogOpen" :title="dialogType === 'module' ? (moduleForm.id ? `编辑${moduleLabel(moduleForm.moduleType)}` : '新增首页组件') : (activityForm.code ? '编辑营销活动' : '新增营销活动')" width="760px" destroy-on-close :close-on-click-modal="!uploadingImages && !saving" :close-on-press-escape="!uploadingImages && !saving" :show-close="!uploadingImages && !saving">
+      <el-form v-if="dialogType === 'module'" label-position="top" :disabled="saving">
         <div class="form-grid">
           <el-form-item label="组件类型">
-            <el-select v-model="moduleForm.moduleType" :disabled="Boolean(moduleForm.id)" @change="initializeModuleEditor">
+            <el-select v-model="moduleForm.moduleType" :disabled="Boolean(moduleForm.id) || Boolean(uploadingImages)" @change="initializeModuleEditor">
               <el-option label="快捷入口" value="QUICK_ENTRY" />
               <el-option label="活动卡片" value="ACTIVITY_ZONE" />
               <el-option label="配送提示条" value="ANNOUNCEMENT" />
@@ -506,20 +513,20 @@ onMounted(load)
         </template>
 
         <template v-else-if="moduleForm.moduleType === 'ACTIVITY_ZONE'">
-          <div class="visual-editor-head"><el-divider content-position="left">活动卡片（{{ zoneItems.length }} 张）</el-divider><el-button type="primary" plain :icon="Plus" @click="addZoneItem">新增卡片</el-button></div>
+          <div class="visual-editor-head"><el-divider content-position="left">活动卡片（{{ zoneItems.length }} 张）</el-divider><el-button type="primary" plain :icon="Plus" :disabled="Boolean(uploadingImages)" @click="addZoneItem">新增卡片</el-button></div>
           <el-empty v-if="!zoneItems.length" description="暂无活动卡片，可点击新增" :image-size="70" />
           <div class="visual-editor-grid">
             <div v-for="(item, index) in zoneItems" :key="index" class="visual-item-editor zone-editor">
               <div class="editor-item-title">
                 <span :class="['zone-color-preview', item.theme]" /><strong>活动卡片 {{ index + 1 }}</strong>
-                <div class="editor-item-actions"><el-button link :disabled="index === 0" @click="moveItem(zoneItems, index, -1)">上移</el-button><el-button link :disabled="index === zoneItems.length - 1" @click="moveItem(zoneItems, index, 1)">下移</el-button><el-button link type="danger" @click="removeZoneItem(index)">删除</el-button></div>
+                <div class="editor-item-actions"><el-button link :disabled="index === 0 || Boolean(uploadingImages)" @click="moveItem(zoneItems, index, -1)">上移</el-button><el-button link :disabled="index === zoneItems.length - 1 || Boolean(uploadingImages)" @click="moveItem(zoneItems, index, 1)">下移</el-button><el-button link type="danger" :disabled="Boolean(uploadingImages)" @click="removeZoneItem(index)">删除</el-button></div>
               </div>
               <div class="form-grid">
                 <el-form-item label="小标题"><el-input v-model="item.kicker" maxlength="12" placeholder="省心搭配" /></el-form-item>
                 <el-form-item label="主标题"><el-input v-model="item.title" maxlength="12" placeholder="在家做饭" /></el-form-item>
                 <el-form-item label="按钮文字"><el-input v-model="item.linkText" maxlength="12" placeholder="去看看 →" /></el-form-item>
                 <el-form-item label="跳转活动"><el-select v-model="item.type" filterable allow-create default-first-option placeholder="选择营销活动"><el-option v-for="activity in activities" :key="activity.code" :label="`${activity.name}（${activity.code}）`" :value="activity.code" /></el-select></el-form-item>
-                <el-form-item label="商品图片路径" class="span-2"><el-input v-model="item.image" placeholder="/assets/products/mushroom.jpg" /></el-form-item>
+                <el-form-item label="活动图片" class="span-2"><ImageUpload v-model="item.image" :disabled="saving" @uploading="trackUpload" /></el-form-item>
                 <el-form-item label="卡片颜色"><el-select v-model="item.theme"><el-option v-for="theme in themeOptions" :key="theme.value" :label="theme.label" :value="theme.value" /></el-select></el-form-item>
               </div>
             </div>
@@ -553,7 +560,7 @@ onMounted(load)
         <el-form-item label="活动说明" class="span-2"><el-input v-model="activityForm.description" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="活动规则 JSON" class="span-2"><el-input v-model="activityForm.rulesJson" type="textarea" :rows="8" class="code-input" /></el-form-item>
       </el-form>
-      <template #footer><el-button @click="dialogOpen = false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存并发布</el-button></template>
+      <template #footer><el-button :disabled="Boolean(uploadingImages) || saving" @click="dialogOpen = false">取消</el-button><el-button type="primary" :loading="saving" :disabled="Boolean(uploadingImages)" @click="save">保存并发布</el-button></template>
     </el-dialog>
 
     <el-dialog v-model="productDialogOpen" :title="`${productActivity?.name || ''} · 活动商品`" width="1080px" destroy-on-close @opened="resetProductForm">

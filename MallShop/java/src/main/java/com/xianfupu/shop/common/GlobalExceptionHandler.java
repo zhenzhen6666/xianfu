@@ -10,6 +10,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -44,6 +45,12 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiError> handleUnreadable(HttpMessageNotReadableException ex, HttpServletRequest request) {
         return ResponseEntity.badRequest().body(new ApiError(
                 Instant.now(), 400, "INVALID_JSON", "请求内容格式不正确", request.getRequestURI(), null));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ResponseEntity<ApiError> handleUploadSize(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(new ApiError(
+                Instant.now(), 413, "INVALID_IMAGE", "图片不能超过 5MB", request.getRequestURI(), null));
     }
 
     @ExceptionHandler(Exception.class)
